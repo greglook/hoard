@@ -2,7 +2,8 @@
   "Common task utilities."
   (:require
     [clojure.string :as str]
-    [hoard.config :as cfg]))
+    [hoard.config :as cfg]
+    [hoard.store.memory :refer [memory-repository]]))
 
 
 ;; ## Coloring
@@ -74,3 +75,26 @@
     (throw (ex-info (str "Task exited with code " code)
                     {:code code}))
     (System/exit code)))
+
+
+
+;; ## Repo Setup
+
+(defn init-repo
+  "Initialize a repository from the configuration."
+  [config repo-name]
+  (let [repo-config (cfg/repo-config config repo-name)]
+    (when-not repo-config
+      (printerr "could not find configuration for repository" repo-name)
+      (exit! 2))
+    (case (:type repo-config)
+      :memory
+      (memory-repository)
+
+      :file
+      (throw (RuntimeException. "NYI"))
+
+      ;; else
+      (do
+        (printerr "unknown repository type" (name (:type repo-config)))
+        (exit! 3)))))
