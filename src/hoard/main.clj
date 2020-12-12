@@ -5,6 +5,7 @@
     [clojure.stacktrace :as cst]
     [clojure.tools.cli :as cli]
     [hoard.config :as cfg]
+    [hoard.task.list :as list]
     [hoard.task.version :as version]))
 
 
@@ -12,7 +13,7 @@
   "Command-line tool options."
   [[nil  "--repository PATH" "Use the repository at this location"]
    [nil  "--enchive PATH" "Path to the enchive binary to use"]
-   [nil  "--no-color" "Don't output ANSI color codes"]
+   ;[nil  "--no-color" "Don't output ANSI color codes"]
    ;["-v" "--verbose" "Print detailed debugging output"]
    ["-h" "--help" "Show help and usage information"]])
 
@@ -51,7 +52,7 @@
     ;; Show help for general usage or a command.
     (when (:help options)
       (case command
-        ;"list"    (task/print-list-usage)
+        "list"    (list/print-usage)
         ;"show"    (task/print-show-usage)
         ;"store"   (task/print-store-usage)
         ;"restore" (task/print-restore-usage)
@@ -69,20 +70,22 @@
       (System/exit 1))
     ;; Execute requested command.
     (try
-      (cfg/with-options options
-        (case command
-          ;"list"    (task/list-archives args)
-          ;"show"    (task/show-archive args)
-          ;"store"   (task/store-data args)
-          ;"restore" (task/restore-data args)
-          ;"verify"  (task/verify-repo args)
-          ;"clean"   (task/clean-repo args)
-          ;"stats"   (task/repo-stats args)
-          "version" (version/print-version args)
-          (binding [*out* *err*]
-            (println "Unknown hoard command:" command)
-            (flush)
-            (System/exit 1))))
+      ;; TODO: init repository
+      (let [repo nil]
+        (cfg/with-options options
+          (case command
+            "list"    (list/list-archives repo args)
+            ;"show"    (task/show-archive args)
+            ;"store"   (task/store-data args)
+            ;"restore" (task/restore-data args)
+            ;"verify"  (task/verify-repo args)
+            ;"clean"   (task/clean-repo args)
+            ;"stats"   (task/repo-stats args)
+            "version" (version/print-version args)
+            (binding [*out* *err*]
+              (println "Unknown hoard command:" command)
+              (flush)
+              (System/exit 1)))))
       (catch Exception ex
         (binding [*out* *err*]
           (cst/print-cause-trace ex)
