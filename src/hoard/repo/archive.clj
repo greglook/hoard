@@ -1,7 +1,7 @@
 (ns hoard.repo.archive
   (:require
     [clojure.spec.alpha :as s]
-    [hoard.repo.index :as index]))
+    [hoard.repo.version :as version]))
 
 
 ;; ## Specs
@@ -13,4 +13,4 @@
 
 ;; Sequence of versions of the archive.
 (s/def ::versions
-  (s/coll-of ::index/meta :kind vector?))
+  (s/coll-of ::version/meta :kind vector?))
