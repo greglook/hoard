@@ -9,9 +9,15 @@ backups of your important files.
 
 git-like index into a content-addressed store of files, but all the objects are encrypted
 
+index preserves attributes:
+- path
+- type (directory, file, symlink)
+- permissions
+- mtime
+
 ```
 repository
-├── meta.edn
+├── meta.properties
 ├── archive
 │   ├── foo
 │   │   ├── 20201204-01482-abcd
@@ -32,19 +38,64 @@ repository
 ```
 
 
+## Configuration
+
+`hoard` draws its configuration from `$XDG_CONFIG/hoard/config`. This is a
+simple INI file with a few sections.
+
+### Defaults
+
+Default configuration lives in the `[defaults]` section.
+
+### Repositories
+
+Each repository is configured in a section under the `repository` key, so a
+local repository would be `[repository.local]`.
+
+
 ## Operations
+
+### Initialize Repository
+
+```
+hoard init <repo>
+```
+
+Initialize a new empty repository structure. May not be necessary for all
+repository types.
+
+### Sync Repository
+
+```
+hoard sync <from-repo> <to-repo> [archive...]
+```
+
+Synchronize the versions and data from one repository to another. Specific
+archive names may be provided, or all archives will be synchronized by default.
 
 ### List Archives
 
-List the archive namespaces present in the repository.
-- optionally include metadata
+```
+hoard list <repo>
+```
 
-### Inspect Archive
+List the archive namespaces present in the repository.
+- optionally include metadata?
+
+### Repository Status
+
+```
+hoard status <repo> [archive] [version]
+```
 
 View information about an archive including metadata, storage statistics, and
 available versions.
 
 ### Archive Data
+
+```
+hoard archive <repo> <archive> [source-path] [--update] [--exclude PATH ...]
+```
 
 creating a backup:
 - iterating over all of the files on disk
@@ -54,6 +105,10 @@ creating a backup:
 - encrypt and store the timestamped index
 
 ### Restore Data
+
+```
+hoard restore <repo> <archive> [target-path] [--version ID] [--prefix PATH ...] [--exclude PATH ...]
+```
 
 restoring:
 - selecting index to restore from and a location to restore to
@@ -65,13 +120,17 @@ restoring:
 
 ### Verify Archive
 
+```
+hoard verify <repo> [archive] [version]
+```
+
 - verify index by checking that all files are present in target storage
 - deep verify would decrypt and re-hash files
 
-### Prune Data
+### Trim Data
+
+```
+hoard trim <repo> [archive] [--keep-days D] [--keep-versions N]
+```
 
 - prune data outside a list of indexes to keep
-
-### Statistics
-
-- print stats about index and total backup repo size
