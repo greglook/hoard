@@ -57,3 +57,20 @@
   (when (cfg/option :verbose)
     (apply printerrf message fmt-args))
   nil)
+
+
+
+;; ## Exit Behavior
+
+(def ^:dynamic *suppress-exit*
+  "Bind this to prevent tasks from exiting the system process."
+  false)
+
+
+(defn exit!
+  "Exit a task with a status code."
+  [code]
+  (if *suppress-exit*
+    (throw (ex-info (str "Task exited with code " code)
+                    {:code code}))
+    (System/exit code)))

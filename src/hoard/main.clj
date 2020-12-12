@@ -4,7 +4,8 @@
   (:require
     [clojure.stacktrace :as cst]
     [clojure.tools.cli :as cli]
-    [hoard.config :as cfg]))
+    [hoard.config :as cfg]
+    [hoard.task.version :as version]))
 
 
 (def ^:private cli-options
@@ -57,7 +58,7 @@
         ;"verify"  (task/print-verify-usage)
         ;"clean"   (task/print-clean-usage)
         ;"stats"   (task/print-stats-usage)
-        ;"version" (task/print-version-usage)
+        "version" (version/print-usage)
         (print-general-usage (parsed :summary)))
       (flush)
       (System/exit 0))
@@ -77,7 +78,7 @@
           ;"verify"  (task/verify-repo args)
           ;"clean"   (task/clean-repo args)
           ;"stats"   (task/repo-stats args)
-          ;"version" (task/print-version args)
+          "version" (version/print-version args)
           (binding [*out* *err*]
             (println "Unknown hoard command:" command)
             (flush)
