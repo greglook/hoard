@@ -43,11 +43,36 @@ repository
 `hoard` draws its configuration from `$XDG_CONFIG/hoard/config`. This is a
 simple INI file with a few sections.
 
-### Defaults
+- `encrypt`
 
-Default configuration lives in the `[defaults]` section.
+  Set the command used to encrypt data. This command must accept the plaintext
+  on STDIN and write the ciphertext to STDOUT. It should not require user
+  interaction.
 
-### Repositories
+- `decrypt`
+
+  Set the command used to decrypt data. This command must accept the ciphertext
+  on STDIN and write the plaintext to STDOUT. It should not require user
+  interaction.
+
+- `type`
+
+  Specify the type of repository. Currently supports `file`.
+
+- `trim.keep-versions`
+
+  The number of versions of the archive to preserve when trimming.
+
+- `trim.keep-days`
+
+  The number of days of archive versions to preserve when trimming.
+
+### Defaults Section
+
+Default configuration lives in the `[defaults]` section. This will be used for
+any repository that does not specify a value for the configuration set here.
+
+### Repository Sections
 
 Each repository is configured in a section under the `repository` key, so a
 local repository would be `[repository.local]`.
@@ -61,13 +86,13 @@ local repository would be `[repository.local]`.
 hoard init <repo>
 ```
 
-Initialize a new empty repository structure. May not be necessary for all
-repository types.
+Initialize a new empty repository structure.
 
 ### Sync Repository
 
 ```
 hoard sync <from-repo> <to-repo> [archive...]
+    [--dry-run]
 ```
 
 Synchronize the versions and data from one repository to another. Specific
@@ -76,10 +101,10 @@ archive names may be provided, or all archives will be synchronized by default.
 ### List Archives
 
 ```
-hoard list <repo>
+hoard list [repo...]
 ```
 
-List the archive namespaces present in the repository.
+List the archive namespaces present in the repositories.
 - optionally include metadata?
 
 ### Repository Status
@@ -94,7 +119,10 @@ available versions.
 ### Archive Data
 
 ```
-hoard archive <repo> <archive> [source-path] [--update] [--exclude PATH ...]
+hoard archive <repo> <archive> [source-path]
+    [--update]
+    [--exclude PATH ...]
+    [--dry-run]
 ```
 
 creating a backup:
@@ -107,7 +135,12 @@ creating a backup:
 ### Restore Data
 
 ```
-hoard restore <repo> <archive> [target-path] [--version ID] [--prefix PATH ...] [--exclude PATH ...]
+hoard restore <repo> <archive> [target-path]
+    [--version ID]
+    [--prefix PATH ...]
+    [--exclude PATH ...]
+    [--overwrite]
+    [--dry-run]
 ```
 
 restoring:
@@ -122,6 +155,7 @@ restoring:
 
 ```
 hoard verify <repo> [archive] [version]
+    [--full]
 ```
 
 - verify index by checking that all files are present in target storage
@@ -130,7 +164,10 @@ hoard verify <repo> [archive] [version]
 ### Trim Data
 
 ```
-hoard trim <repo> [archive] [--keep-days D] [--keep-versions N]
+hoard trim <repo> [archive]
+    [--keep-versions N]
+    [--keep-days D]
+    [--dry-run]
 ```
 
 - prune data outside a list of indexes to keep
