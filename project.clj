@@ -7,7 +7,7 @@
   :dependencies
   [[org.clojure/clojure "1.10.2-alpha1"]
    [org.clojure/tools.cli "1.0.194"]
-   [mvxcvi/multiformats "0.2.1"]]
+   [mvxcvi/blocks "2.0.4"]]
 
   :main hoard.main
 

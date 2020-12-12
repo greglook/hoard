@@ -1,0 +1,67 @@
+version: 2.1
+
+# Common executor configuration
+executors:
+  clojure:
+    docker:
+      - image: circleci/clojure:lein-2.9.1
+    working_directory: ~/repo
+
+
+# Job definitions
+jobs:
+  test:
+    executor: clojure
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-test-{{ checksum "project.clj" }}
+            - v1-test-
+      - run:
+          command: lein deps
+      - run:
+          command: lein check
+      - run:
+          command: lein test
+      - save_cache:
+          key: v1-test-{{ checksum "project.clj" }}
+          paths:
+            - ~/.m2
+
+  lint:
+    executor: clojure
+    steps:
+      - checkout
+      - run:
+          name: Install clj-kondo
+          environment:
+            CLJ_KONDO_VERSION: 2019.12.14
+          command: |
+            wget https://github.com/borkdude/clj-kondo/releases/download/v${CLJ_KONDO_VERSION}/clj-kondo-${CLJ_KONDO_VERSION}-linux-amd64.zip
+            unzip clj-kondo-${CLJ_KONDO_VERSION}-linux-amd64.zip
+      - run:
+          name: Lint source code
+          command: "./clj-kondo --lint src test"
+
+  style:
+    executor: clojure
+    steps:
+      - checkout
+      - run:
+          name: Install cljstyle
+          environment:
+            CLJSTYLE_VERSION: 0.14.0
+          command: |
+            wget https://github.com/greglook/cljstyle/releases/download/${CLJSTYLE_VERSION}/cljstyle_${CLJSTYLE_VERSION}_linux.tar.gz
+            tar -xzf cljstyle_${CLJSTYLE_VERSION}_linux.tar.gz
+
+
+# Workflow definitions
+workflows:
+  version: 2
+  build:
+    jobs:
+      - test
+      - lint
+      - style

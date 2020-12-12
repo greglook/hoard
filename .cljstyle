@@ -1,0 +1,10 @@
+;; vim: filetype=clojure
+{:files
+ {:ignore #{"target" ".git"}}
+
+ :rules
+ {:blank-lines
+  {:max-consecutive 3}
+
+  :indentation
+  {:indents {with-options [[:block 1]]}}}}

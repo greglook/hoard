@@ -1,8 +1,8 @@
-Replicant
-=========
+Hoard
+=====
 
-Replicant is a tool for incrementally managing secure, encrypted backups of
-your files.
+Hoard is a command-line tool for incrementally managing secure, encrypted
+backups of your important files.
 
 
 ## Design
@@ -20,12 +20,13 @@ repository
 │   └── bar
 │       └── ...
 └── data
-    └── 1100
-        ├── 00
+    ├── meta.properties
+    └── blocks
+        ├── 11140000
         │   ├── debc06fba391088613aafb041a23f0cb8f5ceaad9b487e2928897a75933778
         │   ├── b2c7eef7421670bd4aca894ed27a94c8219e181d7b63006bea3038240164c1
         │   └── ...
-        ├── 01
+        ├── 11140001
         │   └── ...
         └── ...
 ```
