@@ -16,7 +16,7 @@
   (get-archive
     [repo archive-name]
     "Retrieve information about a specific archive. Returns nil if no such
-    archive is present.")
+    archive is present. Versions are returned in time-ascending order.")
 
   (read-version
     [repo archive-name version-id]
