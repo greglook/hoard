@@ -11,8 +11,7 @@
 
 (def ^:private cli-options
   "Command-line tool options."
-  [[nil  "--repository PATH" "Use the repository at this location"]
-   [nil  "--enchive PATH" "Path to the enchive binary to use"]
+  [,,,
    ;[nil  "--no-color" "Don't output ANSI color codes"]
    ;["-v" "--verbose" "Print detailed debugging output"]
    ["-h" "--help" "Show help and usage information"]])
