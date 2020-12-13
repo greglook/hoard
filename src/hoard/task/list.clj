@@ -9,20 +9,25 @@
 (defn print-usage
   "Print help for the list command."
   []
-  (println "Usage: hoard [options] list")
+  (println "Usage: hoard [options] list <repo> [repo...]")
   (newline)
-  (println "List the archives present in the repository."))
+  (println "List the archives present in the named repositories."))
 
 
 (defn list-archives
   "Implementation of the `list` command."
-  [repo args]
-  (when (seq args)
-    (u/printerr "hoard list command takes no arguments")
+  [config args]
+  (when-not (seq args)
+    (u/printerr "list command requires at least one repository name")
     (u/exit! 1))
-  (->>
-    (store/list-archives repo {})
-    (map ::archive/name)
-    (sort)
-    (run! println))
-  (flush))
+  (run!
+    (fn list-repo
+      [repo-name]
+      (let [repo (u/init-repo config repo-name)]
+        (->>
+          (store/list-archives repo {})
+          (map ::archive/name)
+          (sort)
+          (run! println))
+      (flush)))
+    args))
