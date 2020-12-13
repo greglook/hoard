@@ -63,113 +63,129 @@
 
 
 
+;; ## Utilities
+
+;; TODO: write some index data manipulation functions:
+;; - generate various index structures, e.g. by path, content-id, crypt-id
+;; - find an entry by matching attributes
+
+
+
 ;; ## File Format
+
+(defn- format-header
+  "Format a row of column headers."
+  [columns]
+  (->>
+    columns
+    (map (comp name :name) columns)
+    (str/join "\t")))
+
+
+(defn- format-row
+  "Format a row of TSV using the given column definitions. Returns the row
+  string encoding the entry data."
+  [columns entry]
+  (->>
+    columns
+    (map (fn encode-cell
+           [column]
+           (if-some [value (get entry (:name column))]
+             (let [encode (:encode column str)]
+               (encode value))
+             "")))
+    (str/join "\t")))
+
+
+(defn- parse-row
+  "Parse a row of TSV using the given column definitions. Returns the entry
+  data decoded from the row."
+  [columns row]
+  (let [cells ])
+  (->>
+    (str/split row #"\t")
+    (map vector columns)
+    (keep (fn decode-cell
+            [column cell]
+            (when-not (str/blank? cell)
+              [(:name column)
+               (let [decode (:decode column identity)]
+                 (decode cell))])))
+    (into {})))
+
 
 ;; ### v1
 
 ;; Indexes are stored as line-based text files in their plain form. The first
 ;; line of the file gives the file version. The second line contains
-;; tab-separated key/value pairs of index header metadata. Every subsequent
-;; line is an entry in the index, containing the column values.
+;; the column headers. Every subsequent line is an entry in the index,
+;; containing the column values.
 
 (def ^:private ^:const v1-version
   "hoard.repo.index/v1")
 
 
-(defn- v1-format-header
-  "Convert a map of index metadata into a header line."
-  [metadata entries]
-  (->>
-    (assoc metadata
-           :count (count entries)
-           :size (apply + (keep :size entries)))
-    (map #(str (name (first %)) "=" (second %)))
-    (str/join "\t")))
-
-
-(defn- v1-parse-header
-  "Parse a line of header metadata from a v1 file."
-  [header-line]
-  (->>
-    (str/split header-line #"\t")
-    (map #(str/split % #"="))
-    (map (juxt (comp keyword first) second))
-    (into {})))
-
-
-(defn- v1-format-row
-  "Convert an index entry map into a string row data."
-  [entry]
-  (str/join
-    "\t"
-    [(mhash/hex (:content-id entry))
-     (mhash/hex (:crypt-id entry))
-     (:path entry)
-     (name (:type entry))
-     (:size entry)
-     (:permissions entry)
-     (:modified-at entry)]))
-
-
-(defn- v1-parse-row
-  "Parse a string of row data into an index entry map."
-  [row]
-  (let [[content-id crypt-id path file-type size permissions modified-at] (str/split row #"\t")]
-    {:content-id (mhash/parse content-id)
-     :crypt-id (mhash/parse crypt-id)
-     :path path
-     :type (keyword file-type)
-     :size (Long/parseLong size)
-     :permissions (Integer/parseInt permissions)
-     :modified-at (Instant/parse modified-at)}))
+(def ^:private v1-columns
+  "Sequence of column definitions for serialization of index data."
+  [{:name :content-id
+    :encode mhash/hex
+    :decode mhash/parse}
+   {:name :crypt-id
+    :encode mhash/hex
+    :decode mhash/parse}
+   {:name :path}
+   {:name :type
+    :encode name
+    :decode keyword}
+   {:name :size
+    :decode #(Long/parseLong %)}
+   {:name :permissions
+    :decode #(Integer/parseInt %)}
+   {:name :modified-at
+    :decode #(Instant/parse %)}])
 
 
 (defn- v1-write!
   "Write the header and index entries to the given output stream."
-  [out metadata entries]
+  [out entries]
   (when-not (s/valid? ::entries entries)
     (throw (ex-info (str "Cannot write invalid index entry data: "
                          (s/explain-str ::entries entries))
                     {})))
   (binding [*out* (io/writer out)]
     (println v1-version)
-    (println (v1-format-header metadata entries))
+    (println (format-header v1-columns))
     (->>
       entries
       (sort-by :path)
-      (map v1-format-row)
+      (map (partial format-row v1-columns))
       (run! println))
     (flush)))
 
 
 (defn- v1-read-lines
-  "Read the contents of an index file. Returns a vector containing the header
-  metadata as the first entry and the entry data as the second entry."
+  "Read the contents of an index file. Returns a vector of the entry data."
   [lines]
-  (let [[header & rows] lines]
-    [(v1-parse-header header)
-     (mapv v1-parse-row rows)]))
+  (let [expected (format-header v1-columns)
+        [header & rows] lines]
+    (when (not= expected header)
+      (throw (ex-info (str "Unexpected header reading v1 index: "
+                           (pr-str header))
+                      {:header header
+                       :expected expected})))
+    (mapv (partial parse-row v1-columns) rows)))
 
 
 ;; ### General Format
 
-(defn read-header
-  "Read header metadata from the index file input content."
-  [in]
-  (binding [*in* (io/reader in)]
-    (let [version (read-line)]
-      (condp = version
-        v1-version
-        (v1-parse-header (read-line))
-
-        ;; else
-        (throw (ex-info (str "Unsupported index file version: "
-                             version)
-                        {:version version}))))))
+(defn write-data!
+  "Write index data to the given output."
+  [out entries]
+  (v1-write! out entries))
 
 
 (defn read-data
-  "Read index header metadata and entry data."
+  "Read index header and entry data."
   [in]
   (let [[version & lines] (line-seq (io/reader in))]
     (condp = version
@@ -180,9 +196,3 @@
       (throw (ex-info (str "Unsupported index file version: "
                            version)
                       {:version version})))))
-
-
-(defn write-data!
-  "Write index data to the given output."
-  [out metadata entries]
-  (v1-write! out metadata entries))
