@@ -14,4 +14,4 @@
 
 
 (def repo
-  (memory-repository))
+  (memory-repository {}))

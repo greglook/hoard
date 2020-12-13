@@ -39,7 +39,7 @@
 
 ;; Sequence of index data entries.
 (s/def ::index
-  (s/coll-of ::index/entry :kind vector?))
+  ::index/entries)
 
 
 

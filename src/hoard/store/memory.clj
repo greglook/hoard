@@ -75,7 +75,8 @@
 
 (defn memory-repository
   "Construct a new in-memory data repository."
-  []
-  (->MemoryRepository
-    (ref (sorted-map))
-    (memory-block-store)))
+  [opts]
+  (map->MemoryRepository
+    (assoc opts
+           :archives (ref (sorted-map))
+           :blocks (memory-block-store))))
