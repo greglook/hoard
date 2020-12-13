@@ -4,7 +4,9 @@
     [blocks.store.memory :refer [memory-block-store]]
     [hoard.repo.archive :as archive]
     [hoard.repo.version :as version]
-    [hoard.store.core :as store]))
+    [hoard.store.core :as store])
+  (:import
+    java.time.Instant))
 
 
 (defrecord MemoryRepository
@@ -46,6 +48,7 @@
   (create-version!
     [this archive-name index-data]
     (let [version {::version/id (version/gen-id)
+                   ::version/created-at (Instant/now)
                    ::version/count (count index-data)
                    ::version/size (apply + (keep :size index-data))
                    ::version/index index-data}]

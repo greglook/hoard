@@ -14,6 +14,11 @@
   string?)
 
 
+;; Time the version was created.
+(s/def ::created-at
+  inst?)
+
+
 ;; Number of file entries present in the version.
 (s/def ::count
   nat-int?)
@@ -27,7 +32,8 @@
 ;; Map of version metadata attributes.
 (s/def ::meta
   (s/keys :req [::id]
-          :opt [::count
+          :opt [::created-at
+                ::count
                 ::size]))
 
 
