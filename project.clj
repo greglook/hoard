@@ -12,6 +12,12 @@
 
   :main hoard.main
 
+  :hiera
+  {:cluster-depth 2
+   :vertical true
+   :show-external false
+   :ignore-ns #{"clojure"}}
+
   :profiles
   {:repl
    {:source-paths ["dev"]
