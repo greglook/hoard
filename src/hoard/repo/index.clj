@@ -67,13 +67,10 @@
 
 ;; ### v1
 
-;; Indexes are stored as line-based text files which are gzipped and then
-;; encrypted.
-;;
-;; The first line of the file gives the file version, which for v1 is
-;; `hoard.repo.index/v1`. The second line contains tab-separated key/value
-;; pairs of index header metadata. Every subsequent line is an entry in the
-;; index, containing the column values.
+;; Indexes are stored as line-based text files in their plain form. The first
+;; line of the file gives the file version. The second line contains
+;; tab-separated key/value pairs of index header metadata. Every subsequent
+;; line is an entry in the index, containing the column values.
 
 (def ^:private ^:const v1-version
   "hoard.repo.index/v1")
@@ -127,7 +124,7 @@
      :modified-at (Instant/parse modified-at)}))
 
 
-(defn v1-write!
+(defn- v1-write!
   "Write the header and index entries to the given output stream."
   [out metadata entries]
   (when-not (s/valid? ::entries entries)
@@ -183,3 +180,9 @@
       (throw (ex-info (str "Unsupported index file version: "
                            version)
                       {:version version})))))
+
+
+(defn write-data!
+  "Write index data to the given output."
+  [out metadata entries]
+  (v1-write! out metadata entries))

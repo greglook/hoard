@@ -3,7 +3,8 @@
   (:require
     [clojure.string :as str]
     [hoard.config :as cfg]
-    [hoard.store.memory :refer [memory-repository]]))
+    [hoard.store.memory :refer [memory-repository]]
+    [hoard.store.file :refer [file-repository]]))
 
 
 ;; ## Coloring
@@ -89,10 +90,10 @@
       (exit! 2))
     (case (:type repo-config)
       :memory
-      (memory-repository)
+      (memory-repository repo-config)
 
       :file
-      (throw (RuntimeException. "NYI"))
+      (file-repository repo-config)
 
       ;; else
       (do
