@@ -2,9 +2,9 @@
   "Common task utilities."
   (:require
     [clojure.string :as str]
-    [hoard.config :as cfg]
-    [hoard.store.memory :refer [memory-repository]]
-    [hoard.store.file :refer [file-repository]]))
+    [hoard.repo.config :as cfg]
+    [hoard.store.file :refer [file-repository]]
+    [hoard.store.memory :refer [memory-repository]]))
 
 
 ;; ## Coloring

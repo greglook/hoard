@@ -4,7 +4,7 @@
   (:require
     [clojure.stacktrace :as cst]
     [clojure.tools.cli :as cli]
-    [hoard.config :as cfg]
+    [hoard.repo.config :as cfg]
     [hoard.task.list :as list]
     [hoard.task.version :as version]))
 

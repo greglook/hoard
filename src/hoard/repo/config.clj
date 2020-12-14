@@ -1,4 +1,4 @@
-(ns hoard.config
+(ns hoard.repo.config
   "Configuration and options for the tool.
 
   Hoard supports a configuration file at `$XDG_CONFIG_HOME/hoard/config`. The
