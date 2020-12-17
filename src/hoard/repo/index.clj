@@ -36,6 +36,11 @@
   inst?)
 
 
+;; If the file is a link, the target path.
+(s/def :hoard.repo.index.entry/target
+  inst?)
+
+
 ;; Multihash digest of the original file content.
 (s/def :hoard.repo.index.entry/content-id
   #(instance? Multihash %))
@@ -50,9 +55,10 @@
 (s/def ::entry
   (s/keys :req-un [:hoard.repo.index.entry/path
                    :hoard.repo.index.entry/type
-                   :hoard.repo.index.entry/size
                    :hoard.repo.index.entry/permissions
-                   :hoard.repo.index.entry/modified-at
+                   :hoard.repo.index.entry/modified-at]
+          :opt-un [:hoard.repo.index.entry/size
+                   :hoard.repo.index.entry/target
                    :hoard.repo.index.entry/content-id
                    :hoard.repo.index.entry/crypt-id]))
 
@@ -126,13 +132,7 @@
 
 (def ^:private v1-columns
   "Sequence of column definitions for serialization of index data."
-  [{:name :content-id
-    :encode mhash/hex
-    :decode mhash/parse}
-   {:name :crypt-id
-    :encode mhash/hex
-    :decode mhash/parse}
-   {:name :path}
+  [{:name :path}
    {:name :type
     :encode name
     :decode keyword}
@@ -141,7 +141,14 @@
    {:name :permissions
     :decode #(Integer/parseInt %)}
    {:name :modified-at
-    :decode #(Instant/parse %)}])
+    :decode #(Instant/parse %)}
+   {:name :content-id
+    :encode mhash/hex
+    :decode mhash/parse}
+   {:name :crypt-id
+    :encode mhash/hex
+    :decode mhash/parse}
+   {:name :target}])
 
 
 (defn- v1-write!
