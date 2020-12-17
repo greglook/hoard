@@ -2,7 +2,8 @@
   "Work on the function instead of the form."
   (:require
     [clojure.java.io :as io]
-    [clojure.string :as str])
+    [clojure.string :as str]
+    [multiformats.hash :as multihash])
   (:import
     (java.io
       File
@@ -127,6 +128,7 @@
   time."
   [^File root]
   ;; TODO: this is neat, but how will it handle ignored directories?
+  ;; TODO: relativize paths to the root
   (->>
     (Files/walk (.toPath root) (into-array java.nio.file.FileVisitOption []))
     (.iterator)
@@ -134,27 +136,17 @@
     (map path-stats)))
 
 
-
-;; ## Root Finding
-
-(defn find-archive-root
-  "Find up from the given directory to locate the hoard archive root. Returns a
-  map of information about the archive, or nil if no archive root is found.
-
-  The search will will terminate after `limit` recursions or once it hits the
-  filesystem root or a directory the user can't read."
-  [^File dir limit]
-  (when (and dir
-             (.isDirectory dir)
-             (.canRead dir)
-             (pos? limit))
-    (let [archive-dir (io/file dir ".hoard")]
-      (if (.isDirectory archive-dir)
-        ;; TODO: load config and ignore here
-        {:root (.getCanonicalPath dir)
-         :config {}
-         :ignore #{}}
-        (recur (.getParentFile dir) (dec limit))))))
+(defn hash-file
+  "If the provided map of stats represents a regular file, augment it by
+  computing the content hash. Returns the map with a `:content-id` multihash,
+  or the original map if it was not a file."
+  [stats]
+  ;; TODO: load from cache somehow
+  (if (and (identical? :file (:type stats))
+           (pos-int? (:size stats)))
+    (with-open [input (io/input-stream (io/file (:path stats)))]
+      (assoc stats :content-id (multihash/sha2-256 input)))
+    stats))
 
 
 
