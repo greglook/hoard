@@ -9,15 +9,11 @@
     java.time.Instant))
 
 
+#_
 (defrecord MemoryRepository
-  [archives blocks]
+  [archives]
 
-  store/Repository
-
-  (block-store
-    [this]
-    blocks)
-
+  store/ArchiveStore
 
   (list-archives
     [this query]
@@ -69,6 +65,7 @@
         false))))
 
 
+#_#_
 (alter-meta! #'->MemoryRepository assoc :private true)
 (alter-meta! #'map->MemoryRepository assoc :private true)
 
@@ -76,6 +73,7 @@
 (defn memory-repository
   "Construct a new in-memory data repository."
   [opts]
+  #_
   (map->MemoryRepository
     (assoc opts
            :archives (ref (sorted-map))

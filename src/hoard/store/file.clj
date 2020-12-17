@@ -38,100 +38,86 @@
     java.time.Instant))
 
 
+;; ## Utilities
+
+(defn- version-file-meta
+  "Return a map of metadata about a version file."
+  [^File file]
+  (let [version-id (.getName file)]
+    {::version/id version-id
+     ::version/size (.length file)
+     ::version/created-at (version/parse-id-inst version-id)}))
+
+
+(defn- list-version-meta
+  "List the version metadata from an archive directory."
+  [^File archive-dir]
+  (->>
+    (.listFiles archive-dir)
+    (map version-file-meta)
+    (sort-by ::version/id)
+    (vec)))
+
+
+(defn- archive-dir-meta
+  "Load the metadata about an archive directory, including a list of version
+  metadata."
+  [^File archive-dir]
+  (when (.exists archive-dir)
+    {::archive/name (.name archive-dir)
+     ::archive/versions (list-version-meta archive-dir)}))
+
+
+
 ;; ## Repository Type
 
-(defrecord FileRepository
-  [^File root blocks]
+(defrecord FileArchiveStore
+  [^File root]
 
-  store/Repository
-
-  (block-store
-    [this]
-    blocks)
-
+  store/ArchiveStore
 
   (list-archives
     [this query]
-    (let [archive-dirs (.listFiles (io/file root "archive"))]
-      (mapv
-        (fn list-arcihve
-          [^File archive-dir]
-          (let [archive-name (.name archive-dir)
-                versions (->>
-                           (.listFiles archive-dir)
-                           (map #(.getName ^File %))
-                           (sort)
-                           (mapv #(array-map ::version/id %)))]
-            {::archive/name archive-name
-             ::archive/versions versions}))
-        archive-dirs)))
+    (mapv archive-dir-meta (.listFiles root)))
 
 
   (get-archive
     [this archive-name]
-    (let [archive-dir (io/file root "archive" archive-name)]
-      (when (.exists archive-dir)
-        (let [versions (->>
-                         (.listFiles archive-dir)
-                         (map (fn [^File version-file]
-                                ;; TODO: need to decrypt and gunzip here
-                                (assoc (index/read-header version-file)
-                                       ::version/id (.getName version-file))))
-                         (sort-by ::version/id)
-                         (vec))]
-          ;; TODO: read the version headers?
-          {::archive/name archive-name
-           ::archive/versions versions}))))
+    (archive-dir-meta (io/file root archive-name)))
 
 
   (read-version
     [this archive-name version-id]
-    (let [version-file (io/file root "archive" archive-name version-id)]
+    (let [version-file (io/file root archive-name version-id)]
       (when (.exists version-file)
-        ;; TODO: need to decrypt and gunzip here
-        #_
-        {::archive/name archive-name
-         ::version/id version-id
-         ,,,})))
+        (io/input-stream version-file))))
 
 
-  (create-version!
-    [this archive-name index-data]
-    (let [version-id (version/gen-id)
-          version-file (io/file root "archive" archive-name version-id)
-          created-at (Instant/now)
-          version {::version/id version-id
-                   ::version/created-at created-at
-                   ::version/count (count index-data)
-                   ::version/size (apply + (keep :size index-data))
-                   ::version/index index-data}]
+  (store-version!
+    [this archive-name version-id content]
+    (let [version-file (io/file root archive-name version-id)]
       (io/make-parents version-file)
-      ;; TODO: gzip and encrypt
-      #_
-      (index/write-data!
-        version-file
-        {:created-at created-at}
-        index-data)
-      version))
+      (io/copy content version-file)
+      (version-file-meta version-file)))
 
 
   (remove-version!
     [this archive-name version-id]
-    (let [version-file (io/file root "archive" archive-name version-id)]
+    (let [version-file (io/file root archive-name version-id)]
       (if (.exists version-file)
         (do (.delete version-file) true)
         false))))
 
 
-(alter-meta! #'->FileRepository assoc :private true)
-(alter-meta! #'map->FileRepository assoc :private true)
+(alter-meta! #'->FileArchiveStore assoc :private true)
+(alter-meta! #'map->FileArchiveStore assoc :private true)
 
 
 (defn file-repository
   "Construct a new in-memory data repository."
   [opts]
   (let [root (io/file (:root opts))]
-    (map->FileRepository
+    (identity
       (assoc opts
-             :root root
+             :archives (->FileArchiveStore (io/file root "archive"))
              :blocks (file-block-store (io/file root "data"))))))
