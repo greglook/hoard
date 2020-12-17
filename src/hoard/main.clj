@@ -4,6 +4,7 @@
   (:require
     [clojure.stacktrace :as cst]
     [clojure.tools.cli :as cli]
+    [hoard.config.ini :as ini]
     [hoard.repo.config :as cfg]
     [hoard.task.list :as list]
     [hoard.task.repo :as repo]
@@ -69,8 +70,7 @@
       (System/exit 1))
     ;; Execute requested command.
     (try
-      ;; TODO: init repository
-      (let [repo nil]
+      (let [config (ini/read (cfg/config-file))]
         (cfg/with-options options
           (case command
             ;"create"  (repo/create-repo config args)

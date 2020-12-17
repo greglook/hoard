@@ -6,8 +6,7 @@
   (:require
     [clojure.java.io :as io]
     [clojure.string :as str]
-    [clojure.walk :as walk]
-    [clojure-ini.core :as ini]))
+    [clojure.walk :as walk]))
 
 
 ;; ## Options
@@ -43,21 +42,6 @@
     (if-not (str/blank? cfg-home)
       (io/file cfg-home "hoard" "config")
       (io/file home ".config" "hoard" "config"))))
-
-
-(defn read-config
-  "Read a configuration file, returning the structured config data."
-  [file]
-  (reduce-kv
-    (fn split-sections
-      [cfg section-key data]
-      (let [path (mapv keyword (str/split section-key #"\."))]
-        (assoc-in cfg path (walk/keywordize-keys data))))
-    {}
-    (ini/read-ini
-      file
-      :keywordize? false
-      :comment-char \#)))
 
 
 (defn- update-some
