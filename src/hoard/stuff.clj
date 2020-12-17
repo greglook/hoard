@@ -4,7 +4,10 @@
     [clojure.java.io :as io]
     [clojure.string :as str])
   (:import
-    java.io.File
+    (java.io
+      File
+      InputStream
+      OutputStream)
     (java.nio.file
       FileVisitOption
       Files
@@ -12,7 +15,19 @@
       Path)
     (java.nio.file.attribute
       FileTime
-      PosixFilePermission)))
+      PosixFilePermission)
+    java.util.concurrent.TimeUnit
+    org.apache.commons.io.input.CountingInputStream
+    org.apache.commons.io.output.CountingOutputStream))
+
+
+(defn stopwatch
+  "Create a delay which yields the number of milliseconds between the time this
+  function was called and when it was realized."
+  []
+  (let [start (System/nanoTime)]
+    (delay (/ (- (System/nanoTime) start) 1e6))))
+
 
 
 ;; ## File Permissions
@@ -111,8 +126,70 @@
   includes the (relative) path, file type, size, permissions, and modified
   time."
   [^File root]
+  ;; TODO: this is neat, but how will it handle ignored directories?
   (->>
     (Files/walk (.toPath root) (into-array java.nio.file.FileVisitOption []))
     (.iterator)
     (iterator-seq)
     (map path-stats)))
+
+
+
+;; ## Root Finding
+
+(defn find-archive-root
+  "Find up from the given directory to locate the hoard archive root. Returns a
+  map of information about the archive, or nil if no archive root is found.
+
+  The search will will terminate after `limit` recursions or once it hits the
+  filesystem root or a directory the user can't read."
+  [^File dir limit]
+  (when (and dir
+             (.isDirectory dir)
+             (.canRead dir)
+             (pos? limit))
+    (let [archive-dir (io/file dir ".hoard")]
+      (if (.isDirectory archive-dir)
+        ;; TODO: load config and ignore here
+        {:root (.getCanonicalPath dir)
+         :config {}
+         :ignore #{}}
+        (recur (.getParentFile dir) (dec limit))))))
+
+
+
+;; ## Process Piping
+
+(defn pipe-process
+  "Pipe the provided stream of input data through a process invoked with the
+  given arguments. Writes output data to the given output stream. Returns a
+  deferred which yields information about the transfer on success."
+  [command ^InputStream in ^OutputStream out]
+  ;; TODO: what to do if the process needs human input?
+  (let [elapsed (stopwatch)
+        process (.start (ProcessBuilder. ^java.util.List command))
+        stdin (CountingOutputStream. (.getOutputStream process))
+        stdout (CountingInputStream. (.getInputStream process))
+        input-copier (future
+                       (io/copy in stdin)
+                       (.close stdin)
+                       (.close in))
+        output-copier (future
+                        (io/copy stdout out)
+                        (.close stdout)
+                        (.close out))]
+    (if (.waitFor process 60 TimeUnit/SECONDS)
+      (do
+        @input-copier
+        @output-copier)
+      (do
+        (future-cancel input-copier)
+        (future-cancel output-copier)
+        (.destroy process)))
+    (let [exit (.exitValue process)]
+      {:exit exit
+       :success? (zero? exit)
+       :stderr (slurp (.getErrorStream process))
+       :elapsed @elapsed
+       :input-bytes (.getByteCount stdin)
+       :output-bytes (.getByteCount stdout)})))
