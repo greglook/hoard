@@ -6,6 +6,8 @@
     [clojure.tools.cli :as cli]
     [hoard.repo.config :as cfg]
     [hoard.task.list :as list]
+    [hoard.task.repo :as repo]
+    [hoard.task.show :as show]
     [hoard.task.version :as version]))
 
 
@@ -23,13 +25,14 @@
   (println "Usage: hoard [options] <command> [args...]")
   (newline)
   (println "Commands:")
-  (println "    list      List the archives present in the repository")
-  (println "    show      Print information about an archive")
-  (println "    store     Store a new snapshot version of an archive")
-  (println "    restore   Restore a saved version of an archive")
-  (println "    verify    Check the integrity of the repository")
-  (println "    clean     Trim the version history and remove unused data")
-  (println "    stats     Print information about the repository")
+  (println "    create    Create a new horde repository")
+  (println "    list      List the archives present in a repository")
+  (println "    show      Print information about a repository, archive, or version")
+  ;(println "    status    Show the current status of a working directory")
+  ;(println "    archive   Store a new snapshot version of an archive")
+  ;(println "    restore   Restore a saved version of an archive")
+  ;(println "    verify    Check the integrity of the repository")
+  ;(println "    trim      Trim the version history and remove unused data")
   (println "    version   Print program version information.")
   (newline)
   (println "Options:")
@@ -51,13 +54,10 @@
     ;; Show help for general usage or a command.
     (when (:help options)
       (case command
+        ;"create"  (repo/print-create-usage)
         "list"    (list/print-usage)
-        ;"show"    (task/print-show-usage)
-        ;"store"   (task/print-store-usage)
-        ;"restore" (task/print-restore-usage)
-        ;"verify"  (task/print-verify-usage)
-        ;"clean"   (task/print-clean-usage)
-        ;"stats"   (task/print-stats-usage)
+        "show"    (show/print-usage)
+        ;"init"
         "version" (version/print-usage)
         (print-general-usage (parsed :summary)))
       (flush)
@@ -73,13 +73,13 @@
       (let [repo nil]
         (cfg/with-options options
           (case command
-            "list"    (list/list-archives repo args)
-            ;"show"    (task/show-archive args)
-            ;"store"   (task/store-data args)
-            ;"restore" (task/restore-data args)
-            ;"verify"  (task/verify-repo args)
-            ;"clean"   (task/clean-repo args)
-            ;"stats"   (task/repo-stats args)
+            ;"create"  (repo/create-repo config args)
+            "list"    (list/list-archives config args)
+            "show"    (show/show-info config args)
+            ;"init"    (archive/initialize-local config args)
+            ;"status"  (archive/print-status config args)
+            ;"keep"    (archive/keep-data config args)  (also, "save", "preserve")
+            ;"restore" (archive/restore-data config args)
             "version" (version/print-version args)
             (binding [*out* *err*]
               (println "Unknown hoard command:" command)

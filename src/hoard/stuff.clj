@@ -77,7 +77,7 @@
               [i]
               (if (zero? (bit-and bits (bit-shift-left 1 i)))
                 "-"
-                (case (mod i 3)
+                (case (int (mod i 3))
                   0 "x"
                   1 "w"
                   2 "r"))))
@@ -97,28 +97,28 @@
         modified-at (.toInstant (Files/getLastModifiedTime path no-follow-links))]
     (cond
       (Files/isSymbolicLink path)
-      {:path (str path)
-       :type :symlink
+      {:type :symlink
+       :path (str path)
        :target (str (Files/readSymbolicLink path))
        :permissions permissions
        :modified-at modified-at}
 
       (Files/isRegularFile path no-follow-links)
-      {:path (str path)
-       :type :file
+      {:type :file
+       :path (str path)
        :size size
        :permissions permissions
        :modified-at modified-at}
 
       (Files/isDirectory path no-follow-links)
-      {:path (str path)
-       :type :directory
+      {:type :directory
+       :path (str path)
        :permissions permissions
        :modified-at modified-at}
 
       :else
-      {:path (str path)
-       :type :unknown})))
+      {:type :unknown
+       :path (str path)})))
 
 
 (defn walk-files

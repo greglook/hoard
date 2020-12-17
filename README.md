@@ -15,11 +15,24 @@ index preserves attributes:
 - permissions
 - mtime
 
+### Local Structure
+
+```
+local
+├── .hoard
+│   ├── config
+│   ├── ignore
+│   └── cache
+└── ...
+```
+
+### Repository Structure
+
 ```
 repository
-├── meta.properties
 ├── archive
 │   ├── foo
+│   │   ├── config
 │   │   ├── 20201204-01482-abcd
 │   │   ├── 20201210-57391-defg
 │   │   └── ...
@@ -78,15 +91,49 @@ Each repository is configured in a section under the `repository` key, so a
 local repository would be `[repository.local]`.
 
 
+## Workflow
+
+What are the workflows/use-cases that need to be supported by the tool?
+
+- I want to initialize a new repository.
+- I want to inspect the archives and versions stored in a repository.
+- I have a local directory I want to archive that has not been stored before.
+- I have a local directory that has been archived, and I want to check its
+  state compared to the latest version in a repository.
+- I have a local directory that has been archived, and I want to store a new
+  version in a repository.
+- I have a local directory that has been archived, and I want to restore some
+  files in it to match the version in a repository.
+- I want to restore a version of an archive into a new local directory.
+
+
 ## Operations
 
 ### Initialize Repository
 
 ```
-hoard init <repo>
+hoard create [repo]
 ```
 
 Initialize a new empty repository structure.
+
+### List Archives
+
+```
+hoard list [repo...]
+```
+
+List the archive namespaces present in the repositories.
+- optionally include metadata?
+
+### Repository Information
+
+```
+hoard show <repo> [archive] [version]
+```
+
+View information about an archive including metadata, storage statistics, and
+available versions.
 
 ### Sync Repository
 
@@ -98,30 +145,19 @@ hoard sync <from-repo> <to-repo> [archive...]
 Synchronize the versions and data from one repository to another. Specific
 archive names may be provided, or all archives will be synchronized by default.
 
-### List Archives
-
-```
-hoard list [repo...]
-```
-
-List the archive namespaces present in the repositories.
-- optionally include metadata?
-
-### Repository Status
-
-```
-hoard status <repo> [archive] [version]
-```
-
-View information about an archive including metadata, storage statistics, and
-available versions.
-
-### Archive Data
+### Initialize Archive
 
 ```
 hoard archive <repo> <archive> [source-path]
+```
+
+### Store Data
+
+```
+hoard store <repo> <archive> [source-path]
+    [--include PATTERN ...]
+    [--exclude PATTERN ...]
     [--update]
-    [--exclude PATH ...]
     [--dry-run]
 ```
 

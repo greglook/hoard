@@ -101,7 +101,6 @@
   "Parse a row of TSV using the given column definitions. Returns the entry
   data decoded from the row."
   [columns row]
-  (let [cells ])
   (->>
     (str/split row #"\t")
     (map vector columns)

@@ -9,6 +9,7 @@
     [hoard.repo.config :as cfg]
     [hoard.repo.index :as index]
     [hoard.repo.version :as version]
+    [hoard.stuff :as stuff]
     [hoard.store.core :as store]
     [hoard.store.memory :refer [memory-repository]]))
 
