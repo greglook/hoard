@@ -220,25 +220,34 @@
     :decode multihash/parse}])
 
 
+(defn build-cache
+  "Construct a cache map from the provided file stats."
+  [stats]
+  (into (sorted-map)
+        (comp
+          (filter :content-id)
+          (let [cache-keys (mapv :name cache-columns)]
+            (map (juxt :path #(select-keys % cache-keys)))))
+        stats))
+
+
 (defn read-cache
   "Read cache data from a file, returning a map from paths to cache records."
   [^File file]
   (when (and file (.exists file))
     (with-open [input (io/input-stream file)]
-      (into (sorted-map)
-            (map (juxt :path identity))
-            (tsv/read-data input cache-columns)))))
+      (build-cache (tsv/read-data input cache-columns)))))
 
 
 (defn write-cache!
   "Write cache data to a file."
-  [file stats]
-  (when (and file (seq stats))
+  [file cache]
+  (when (and file (seq cache))
     (with-open [output (io/output-stream file)]
       (tsv/write-data!
         output
         cache-columns
-        (filter :content-id stats)))))
+        (vals cache)))))
 
 
 (defn build-index
@@ -249,8 +258,10 @@
                 (scan-files root ignored)
                 (map (partial hash-file cache))
                 (sort-by :path)
-                (vec))]
-    (write-cache! cache-file stats)
+                (vec))
+        cache' (build-cache stats)]
+    (when (not= cache cache')
+      (write-cache! cache-file cache'))
     stats))
 
 
