@@ -1,4 +1,4 @@
-(ns hoard.config.ini
+(ns hoard.file.ini
   "Simple INI file reader."
   (:refer-clojure :exclude [read])
   (:require

@@ -21,7 +21,7 @@
     (let [archive-dir (io/file dir ".hoard")]
       (if (.isDirectory archive-dir)
         ;; TODO: load config and ignore here
-        {:root (.getCanonicalPath dir)
+        {:root (.getCanonicalFile dir)
          :config {}
          :ignore #{}}
-        (recur (.getParentFile dir) (dec limit))))))
+        (recur (.getParentFile (.getCanonicalFile dir)) (dec limit))))))

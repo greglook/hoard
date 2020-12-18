@@ -3,7 +3,8 @@
     [clojure.java.io :as io]
     [clojure.spec.alpha :as s]
     [clojure.string :as str]
-    [multiformats.hash :as mhash])
+    [hoard.file.tsv :as tsv]
+    [multiformats.hash :as multihash])
   (:import
     java.time.Instant
     multiformats.hash.Multihash))
@@ -38,7 +39,7 @@
 
 ;; If the file is a link, the target path.
 (s/def :hoard.repo.index.entry/target
-  inst?)
+  string?)
 
 
 ;; Multihash digest of the original file content.
@@ -65,7 +66,7 @@
 
 ;; Sequence of entry data.
 (s/def ::entries
-  (s/coll-of ::entry :kind vector?))
+  (s/coll-of ::entry :kind sequential?))
 
 
 
@@ -78,46 +79,6 @@
 
 
 ;; ## File Format
-
-(defn- format-header
-  "Format a row of column headers."
-  [columns]
-  (->>
-    columns
-    (map (comp name :name) columns)
-    (str/join "\t")))
-
-
-(defn- format-row
-  "Format a row of TSV using the given column definitions. Returns the row
-  string encoding the entry data."
-  [columns entry]
-  (->>
-    columns
-    (map (fn encode-cell
-           [column]
-           (if-some [value (get entry (:name column))]
-             (let [encode (:encode column str)]
-               (encode value))
-             "")))
-    (str/join "\t")))
-
-
-(defn- parse-row
-  "Parse a row of TSV using the given column definitions. Returns the entry
-  data decoded from the row."
-  [columns row]
-  (->>
-    (str/split row #"\t")
-    (map vector columns)
-    (keep (fn decode-cell
-            [column cell]
-            (when-not (str/blank? cell)
-              [(:name column)
-               (let [decode (:decode column identity)]
-                 (decode cell))])))
-    (into {})))
-
 
 ;; ### v1
 
@@ -137,17 +98,17 @@
     :encode name
     :decode keyword}
    {:name :size
-    :decode #(Long/parseLong %)}
+    :decode tsv/parse-long}
    {:name :permissions
-    :decode #(Integer/parseInt %)}
+    :decode tsv/parse-long}
    {:name :modified-at
-    :decode #(Instant/parse %)}
+    :decode tsv/parse-inst}
    {:name :content-id
-    :encode mhash/hex
-    :decode mhash/parse}
+    :encode multihash/hex
+    :decode multihash/parse}
    {:name :crypt-id
-    :encode mhash/hex
-    :decode mhash/parse}
+    :encode multihash/hex
+    :decode multihash/parse}
    {:name :target}])
 
 
@@ -160,26 +121,8 @@
                     {})))
   (binding [*out* (io/writer out)]
     (println v1-version)
-    (println (format-header v1-columns))
-    (->>
-      entries
-      (sort-by :path)
-      (map (partial format-row v1-columns))
-      (run! println))
-    (flush)))
-
-
-(defn- v1-read-lines
-  "Read the contents of an index file. Returns a vector of the entry data."
-  [lines]
-  (let [expected (format-header v1-columns)
-        [header & rows] lines]
-    (when (not= expected header)
-      (throw (ex-info (str "Unexpected header reading v1 index: "
-                           (pr-str header))
-                      {:header header
-                       :expected expected})))
-    (mapv (partial parse-row v1-columns) rows)))
+    (flush))
+  (tsv/write-data! out v1-columns entries))
 
 
 ;; ### General Format
@@ -196,7 +139,7 @@
   (let [[version & lines] (line-seq (io/reader in))]
     (condp = version
       v1-version
-      (v1-read-lines lines)
+      (tsv/read-lines v1-columns lines)
 
       ;; else
       (throw (ex-info (str "Unsupported index file version: "
