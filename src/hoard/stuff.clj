@@ -3,6 +3,8 @@
   (:require
     [clojure.java.io :as io]
     [clojure.string :as str]
+    [hoard.file.tsv :as tsv]
+    [manifold.deferred :as d]
     [multiformats.hash :as multihash])
   (:import
     (java.io
@@ -192,13 +194,63 @@
   "If the provided map of stats represents a regular file, augment it by
   computing the content hash. Returns the map with a `:content-id` multihash,
   or the original map if it was not a file."
-  [stats]
-  ;; TODO: load from cache if size and mtime match
+  [cache stats]
   (if (and (identical? :file (:type stats))
            (pos-int? (:size stats)))
-    ;; TODO: measure time spent hashing?
-    (with-open [input (io/input-stream (:file stats))]
-      (assoc stats :content-id (multihash/sha2-256 input)))
+    (let [cached (get cache (:path stats))]
+      (if (and cached
+               (= (:size cached) (:size stats))
+               (= (:modified-at cached) (:modified-at stats)))
+        (assoc stats :content-id (:content-id cached))
+        ;; TODO: measure time spent hashing?
+        (with-open [input (io/input-stream (:file stats))]
+          (assoc stats :content-id (multihash/sha2-256 input)))))
+    stats))
+
+
+(def cache-columns
+  "Sequence of columns for cache records."
+  [{:name :path}
+   {:name :size
+    :decode tsv/parse-long}
+   {:name :modified-at
+    :decode tsv/parse-inst}
+   {:name :content-id
+    :encode multihash/hex
+    :decode multihash/parse}])
+
+
+(defn read-cache
+  "Read cache data from a file, returning a map from paths to cache records."
+  [^File file]
+  (when (and file (.exists file))
+    (with-open [input (io/input-stream file)]
+      (into (sorted-map)
+            (map (juxt :path identity))
+            (tsv/read-data input cache-columns)))))
+
+
+(defn write-cache!
+  "Write cache data to a file."
+  [file stats]
+  (when (and file (seq stats))
+    (with-open [output (io/output-stream file)]
+      (tsv/write-data!
+        output
+        cache-columns
+        (filter :content-id stats)))))
+
+
+(defn build-index
+  "Build an index of the file tree under the root."
+  [cache-file ignored root]
+  (let [cache (read-cache cache-file)
+        stats (->>
+                (scan-files root ignored)
+                (map (partial hash-file cache))
+                (sort-by :path)
+                (vec))]
+    (write-cache! cache-file stats)
     stats))
 
 
