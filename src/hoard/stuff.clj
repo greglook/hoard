@@ -89,51 +89,103 @@
 
 ;; ## File Walking
 
-(defn- path-stats
+(defn- file-stats
   "Return a map of stats about a file at the given path."
-  [^Path path]
-  (let [size (Files/size path)
+  [^File file]
+  (let [path (.toPath file)
+        size (Files/size path)
         no-follow-links (into-array LinkOption [LinkOption/NOFOLLOW_LINKS])
         permissions (permissions->bits (Files/getPosixFilePermissions path no-follow-links))
         modified-at (.toInstant (Files/getLastModifiedTime path no-follow-links))]
     (cond
       (Files/isSymbolicLink path)
       {:type :symlink
-       :path (str path)
        :target (str (Files/readSymbolicLink path))
        :permissions permissions
        :modified-at modified-at}
 
       (Files/isRegularFile path no-follow-links)
       {:type :file
-       :path (str path)
        :size size
        :permissions permissions
        :modified-at modified-at}
 
       (Files/isDirectory path no-follow-links)
       {:type :directory
-       :path (str path)
        :permissions permissions
        :modified-at modified-at}
 
       :else
-      {:type :unknown
-       :path (str path)})))
+      {:type :unknown})))
 
 
-(defn walk-files
+(defn- ignored-predicate
+  "Construct a predicate function which will return true on files that match
+  the ignored configuration.
+
+  The ignore rules are expressed as a set of strings:
+  - If the value contains no `/` characters, it matches if the candidate file
+    name is equal to the value.
+  - If the value _starts_ with a `/`, it matches the candidate file at that
+    path relative to the root.
+  - Otherwise, the value matches if the candidate file path _ends with_ the
+    value."
+  [^File root ignored]
+  ;; OPTIMIZE: there's some precomputation that could happen here, like
+  ;; building a set lookup for exact matches.
+  ;; TODO: support wildcard globs
+  (fn ignore?
+    [^File file]
+    (boolean (some (fn match
+                     [rule]
+                     (cond
+                       (not (str/includes? rule File/pathSeparator))
+                       (= rule (.getName file))
+
+                       (str/starts-with? rule File/pathSeparator)
+                       (= (.getCanonicalPath file)
+                          (str (.getCanonicalPath root)
+                               File/pathSeparator
+                               (if (str/ends-with? rule File/pathSeparator)
+                                 (subs rule 0 (dec (count rule)))
+                                 rule)))
+
+                       :else
+                       (str/ends-with?
+                         (.getCanonicalPath file)
+                         (if (str/ends-with? rule File/pathSeparator)
+                           (subs rule 0 (dec (count rule)))
+                           rule))))
+                   ignored))))
+
+
+(defn- walk-files
+  "Walk a filesystem tree, starting at the root. Returns a lazy sequence of the
+  given file stats, followed by its children in a depth-first fashion."
+  [ignore? ^File file]
+  (when-not (ignore? file)
+    (cons
+      (assoc (file-stats file) :file file)
+      (when (.isDirectory file)
+        (mapcat (partial walk-files ignore?)
+                (.listFiles file))))))
+
+
+(defn scan-files
   "Walk a filesystem depth-first, returning a sequence of file metadata. This
   includes the (relative) path, file type, size, permissions, and modified
   time."
-  [^File root]
-  ;; TODO: this is neat, but how will it handle ignored directories?
-  ;; TODO: relativize paths to the root
-  (->>
-    (Files/walk (.toPath root) (into-array java.nio.file.FileVisitOption []))
-    (.iterator)
-    (iterator-seq)
-    (map path-stats)))
+  [^File root ignored]
+  (let [ignore? (ignored-predicate root (conj (or ignored #{}) ".hoard"))
+        root-path (.toPath root)]
+    (->>
+      (walk-files ignore? root)
+      (drop 1)
+      (map (fn relativize-path
+             [stats]
+             (let [file ^File (:file stats)
+                   rel-path (.relativize root-path (.toPath file))]
+               (assoc stats :path (str rel-path))))))))
 
 
 (defn hash-file
@@ -141,10 +193,11 @@
   computing the content hash. Returns the map with a `:content-id` multihash,
   or the original map if it was not a file."
   [stats]
-  ;; TODO: load from cache somehow
+  ;; TODO: load from cache if size and mtime match
   (if (and (identical? :file (:type stats))
            (pos-int? (:size stats)))
-    (with-open [input (io/input-stream (io/file (:path stats)))]
+    ;; TODO: measure time spent hashing?
+    (with-open [input (io/input-stream (:file stats))]
       (assoc stats :content-id (multihash/sha2-256 input)))
     stats))
 
