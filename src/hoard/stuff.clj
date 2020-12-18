@@ -4,13 +4,16 @@
     [clojure.java.io :as io]
     [clojure.string :as str]
     [hoard.file.tsv :as tsv]
+    [hoard.repo.index :as index]
     [manifold.deferred :as d]
     [multiformats.hash :as multihash])
   (:import
     (java.io
       File
       InputStream
-      OutputStream)
+      OutputStream
+      PipedInputStream
+      PipedOutputStream)
     (java.nio.file
       FileVisitOption
       Files
@@ -20,6 +23,9 @@
       FileTime
       PosixFilePermission)
     java.util.concurrent.TimeUnit
+    (java.util.zip
+      GZIPInputStream
+      GZIPOutputStream)
     org.apache.commons.io.input.CountingInputStream
     org.apache.commons.io.output.CountingOutputStream))
 
@@ -273,31 +279,74 @@
   given arguments. Writes output data to the given output stream. Returns a
   deferred which yields information about the transfer on success."
   [command ^InputStream in ^OutputStream out]
-  ;; TODO: what to do if the process needs human input?
-  (let [elapsed (stopwatch)
-        process (.start (ProcessBuilder. ^java.util.List command))
-        stdin (CountingOutputStream. (.getOutputStream process))
-        stdout (CountingInputStream. (.getInputStream process))
-        input-copier (future
-                       (io/copy in stdin)
-                       (.close stdin)
-                       (.close in))
-        output-copier (future
-                        (io/copy stdout out)
-                        (.close stdout)
-                        (.close out))]
-    (if (.waitFor process 60 TimeUnit/SECONDS)
-      (do
-        @input-copier
-        @output-copier)
-      (do
-        (future-cancel input-copier)
-        (future-cancel output-copier)
-        (.destroy process)))
-    (let [exit (.exitValue process)]
-      {:exit exit
-       :success? (zero? exit)
-       :stderr (slurp (.getErrorStream process))
-       :elapsed @elapsed
-       :input-bytes (.getByteCount stdin)
-       :output-bytes (.getByteCount stdout)})))
+  (d/future
+    ;; TODO: what to do if the process needs human input?
+    (let [elapsed (stopwatch)
+          process (.start (ProcessBuilder. ^java.util.List command))
+          stdin (CountingOutputStream. (.getOutputStream process))
+          stdout (CountingInputStream. (.getInputStream process))
+          input-copier (future
+                         (io/copy in stdin)
+                         (.close stdin)
+                         (.close in))
+          output-copier (future
+                          (io/copy stdout out)
+                          (.close stdout)
+                          (.close out))]
+      (if (.waitFor process 60 TimeUnit/SECONDS)
+        (do
+          @input-copier
+          @output-copier)
+        (do
+          (future-cancel input-copier)
+          (future-cancel output-copier)
+          (.destroy process)))
+      (let [exit (.exitValue process)]
+        (merge
+          {:success? (zero? exit)
+           :elapsed @elapsed
+           :input-bytes (.getByteCount stdin)
+           :output-bytes (.getByteCount stdout)}
+          (when-not (zero? exit)
+            {:exit exit})
+          (let [stderr (slurp (.getErrorStream process))]
+            (when-not (str/blank? stderr)
+              {:error stderr})))))))
+
+
+(defn write-index
+  "Writes a sequence of index data to the given output stream, after
+  compressing it and running it through the given command. Returns a deferred
+  which yields the pipe output when finished."
+  [^OutputStream out command index]
+  (let [pipe-src (PipedInputStream. 4096)
+        pipe-sink (PipedOutputStream. pipe-src)
+        gzip-out (GZIPOutputStream. pipe-sink)
+        count-out (CountingOutputStream. gzip-out)
+        encrypt (pipe-process command pipe-src out)]
+    (index/write-data! count-out index)
+    (.close count-out)
+    (d/chain
+      encrypt
+      #(assoc % :raw-bytes (.getByteCount count-out)))))
+
+
+(defn read-index
+  "Read an index of data from the given input stream."
+  [^InputStream in command]
+  (let [pipe-src (PipedInputStream. 4096)
+        pipe-sink (PipedOutputStream. pipe-src)
+        gzip-in (GZIPInputStream. pipe-src)
+        count-in (CountingInputStream. gzip-in)
+        decrypt (pipe-process command in pipe-sink)]
+    ;; FIXME: this just hangs...
+    (d/chain
+      (d/zip
+        (d/future
+          (index/read-data count-in))
+        decrypt)
+      (fn [[index proc]]
+        (.close count-in)
+        (assoc proc
+               :raw-bytes (.getByteCount count-in)
+               :index index)))))
