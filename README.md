@@ -14,17 +14,39 @@ index preserves attributes:
 - type (directory, file, symlink)
 - permissions
 - mtime
+- target
+
+
+### User Config
+
+User configuration is stored at `$HOME/.config/hoard/config`.
+It contains configuration about how to connect to repositories which the user
+wants to interact with.
+
 
 ### Local Structure
 
 ```
 local
 ├── .hoard
-│   ├── config
-│   ├── ignore
-│   └── cache
+│   ├── config                      archive configuration
+│   ├── ignore                      list of patterns of files to ignore
+│   ├── versions                    directory of locally-known versions
+│   │   ├── 20201204-01482-abcd
+│   │   ├── 20201210-57391-defg
+│   │   └── ...
+│   └── cache                       cache directory, may be deleted
+│       ├── repos                   last-known vesrion stored in repos
+│       └── local                   content hashes of local files
 └── ...
 ```
+
+The archive configuration contains:
+- archive name
+- encryption/decryption settings
+- created-at time?
+- specific trim settings?
+
 
 ### Repository Structure
 
