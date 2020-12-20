@@ -139,7 +139,7 @@
   (let [[version & lines] (line-seq (io/reader in))]
     (condp = version
       v1-version
-      (tsv/read-lines v1-columns lines)
+      (vec (tsv/read-lines v1-columns lines))
 
       ;; else
       (throw (ex-info (str "Unsupported index file version: "

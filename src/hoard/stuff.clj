@@ -281,18 +281,17 @@
   [command ^InputStream in ^OutputStream out]
   (d/future
     ;; TODO: what to do if the process needs human input?
+    ;; Graphical pinentry programs work
     (let [elapsed (stopwatch)
           process (.start (ProcessBuilder. ^java.util.List command))
           stdin (CountingOutputStream. (.getOutputStream process))
           stdout (CountingInputStream. (.getInputStream process))
           input-copier (future
                          (io/copy in stdin)
-                         (.close stdin)
-                         (.close in))
+                         (.close stdin))
           output-copier (future
                           (io/copy stdout out)
-                          (.close stdout)
-                          (.close out))]
+                          (.close stdout))]
       (if (.waitFor process 60 TimeUnit/SECONDS)
         (do
           @input-copier
@@ -336,10 +335,12 @@
   [^InputStream in command]
   (let [pipe-src (PipedInputStream. 4096)
         pipe-sink (PipedOutputStream. pipe-src)
+        decrypt (pipe-process command in pipe-sink)
+        ;; If this GZIP stream is constructed before the process starts, it
+        ;; deadlocks the thread, even though nothing has tried to read from it
+        ;; yet??
         gzip-in (GZIPInputStream. pipe-src)
-        count-in (CountingInputStream. gzip-in)
-        decrypt (pipe-process command in pipe-sink)]
-    ;; FIXME: this just hangs...
+        count-in (CountingInputStream. gzip-in)]
     (d/chain
       (d/zip
         (d/future
