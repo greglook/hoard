@@ -2,6 +2,7 @@
   "Work on the function instead of the form."
   (:require
     [clojure.java.io :as io]
+    [clojure.set :as set]
     [clojure.string :as str]
     [hoard.file.tsv :as tsv]
     [hoard.repo.index :as index]
@@ -274,6 +275,15 @@
 
 ;; ## Process Piping
 
+(defn- piped-streams
+  "Construct a pair of connected output and input streams, forming a pipe.
+  Returns a tuple of the output stream sink and the input stream source."
+  [buffer-size]
+  (let [pipe-src (PipedInputStream. buffer-size)
+        pipe-sink (PipedOutputStream. pipe-src)]
+    [pipe-sink pipe-src]))
+
+
 (defn pipe-process
   "Pipe the provided stream of input data through a process invoked with the
   given arguments. Writes output data to the given output stream. Returns a
@@ -318,36 +328,43 @@
   compressing it and running it through the given command. Returns a deferred
   which yields the pipe output when finished."
   [^OutputStream out command index]
-  (let [pipe-src (PipedInputStream. 4096)
-        pipe-sink (PipedOutputStream. pipe-src)
-        gzip-out (GZIPOutputStream. pipe-sink)
-        count-out (CountingOutputStream. gzip-out)
-        encrypt (pipe-process command pipe-src out)]
-    (index/write-data! count-out index)
-    (.close count-out)
-    (d/chain
-      encrypt
-      #(assoc % :raw-bytes (.getByteCount count-out)))))
+  (d/future
+    (let [[pipe-sink pipe-src] (piped-streams 4096)
+          gzip-out (GZIPOutputStream. pipe-sink)
+          count-out (CountingOutputStream. gzip-out)
+          encrypt (pipe-process command pipe-src out)]
+      (index/write-data! count-out index)
+      (.close count-out)
+      (->
+        @encrypt
+        (assoc :raw-size (.getByteCount count-out))
+        (set/rename-keys
+          {:input-bytes :compressed-size
+           :output-bytes :encrypted-size})))))
 
 
 (defn read-index
-  "Read an index of data from the given input stream."
+  "Read an index of data from the given input stream. Returns a deferred which
+  yields the process result with the index data under `:index` on success."
   [^InputStream in command]
-  (let [pipe-src (PipedInputStream. 4096)
-        pipe-sink (PipedOutputStream. pipe-src)
-        decrypt (pipe-process command in pipe-sink)
-        ;; If this GZIP stream is constructed before the process starts, it
-        ;; deadlocks the thread, even though nothing has tried to read from it
-        ;; yet??
-        gzip-in (GZIPInputStream. pipe-src)
-        count-in (CountingInputStream. gzip-in)]
+  ;; WARNING: the GZIP input stream seems to read some bytes to determine the
+  ;; encoding of the stream *during construction*, so if it is created before
+  ;; the process which fills the pipe, the thread will deadlock.
+  (let [[pipe-sink pipe-src] (piped-streams 4096)]
     (d/chain
       (d/zip
+        (pipe-process command in pipe-sink)
         (d/future
-          (index/read-data count-in))
-        decrypt)
-      (fn [[index proc]]
-        (.close count-in)
-        (assoc proc
-               :raw-bytes (.getByteCount count-in)
-               :index index)))))
+          (let [gzip-in (GZIPInputStream. pipe-src)
+                count-in (CountingInputStream. gzip-in)
+                index (index/read-data count-in)]
+            (.close count-in)
+            [index (.getByteCount count-in)])))
+      (fn combine
+        [[proc [index raw-size]]]
+        (-> proc
+            (assoc :raw-size raw-size
+                   :index index)
+            (set/rename-keys
+              {:input-bytes :encrypted-size
+               :output-bytes :compressed-size}))))))

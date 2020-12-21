@@ -11,7 +11,8 @@
     [hoard.repo.version :as version]
     [hoard.stuff :as stuff]
     [hoard.store.core :as store]
-    [hoard.store.memory :refer [memory-repository]]))
+    [hoard.store.memory :refer [memory-repository]]
+    [manifold.deferred :as d]))
 
 
 (def repo
