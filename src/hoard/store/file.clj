@@ -1,37 +1,11 @@
 (ns hoard.store.file
-  "Local filesystem repository implementation.
-
-  The filesystem in a repository is laid out like so:
-
-      root
-      ├── meta.properties
-      ├── archive
-      │   ├── foo
-      │   │   ├── 20201204-01482-abcd
-      │   │   ├── 20201210-57391-defg
-      │   │   └── ...
-      │   └── bar
-      │       └── ...
-      └── data
-          ├── meta.properties
-          └── blocks
-              ├── 11140000
-              │   ├── debc06fba391088613aafb041a23f0cb8f5ceaad9b487e2928897a75933778
-              │   ├── b2c7eef7421670bd4aca894ed27a94c8219e181d7b63006bea3038240164c1
-              │   └── ...
-              ├── 11140001
-              │   └── ...
-              └── ...
-
-  The individual version files are TSV which start with a single line giving
-  the file format version, followed by a row of version metadata, followed by
-  the index data. The files are gzipped, then encrypted."
+  "Local filesystem repository implementation."
   (:require
     [blocks.store.file :refer [file-block-store]]
     [clojure.java.io :as io]
-    [hoard.repo.archive :as archive]
+    [hoard.core.archive :as archive]
+    [hoard.core.version :as version]
     [hoard.repo.index :as index]
-    [hoard.repo.version :as version]
     [hoard.store.core :as store])
   (:import
     java.io.File
@@ -64,7 +38,7 @@
   metadata."
   [^File archive-dir]
   (when (.exists archive-dir)
-    {::archive/name (.name archive-dir)
+    {::archive/name (.getName archive-dir)
      ::archive/versions (list-version-meta archive-dir)}))
 
 

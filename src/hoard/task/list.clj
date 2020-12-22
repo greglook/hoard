@@ -1,8 +1,8 @@
 (ns hoard.task.list
   (:require
     [clojure.string :as str]
-    [hoard.repo.archive :as archive]
-    [hoard.repo.version :as version]
+    [hoard.core.archive :as archive]
+    [hoard.core.version :as version]
     [hoard.store.core :as store]
     [hoard.task.util :as u]))
 

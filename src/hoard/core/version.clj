@@ -1,4 +1,4 @@
-(ns hoard.repo.version
+(ns hoard.core.version
   (:require
     [clojure.spec.alpha :as s]
     [hoard.repo.index :as index])
