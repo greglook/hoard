@@ -20,6 +20,11 @@
   string?)
 
 
+;; Root file location of the archive.
+(s/def ::root
+  (partial instance? File))
+
+
 ;; When the archive was first initialized.
 (s/def ::created-at
   inst?)
@@ -124,15 +129,22 @@
 
 
 
-;; ## Archive Reading
+;; ## Archive Directories
 
 (defn- load-archive
   "Load a map of archive configuration from the given `.hoard` directory."
   [^File dir]
   (assoc (read-config (io/file dir "config"))
+         ::root (f/parent (f/canonical dir))
          ::ignore (or (read-ignores (io/file dir "ignore")) #{})
-         ;; TODO: read versions
          ::versions (list-versions (io/file dir "versions"))))
+
+
+(defn- archive-file
+  "Return the file representing the given path into the archive's hidden
+  directory."
+  [archive & path]
+  (apply io/file (::root archive) ".hoard" path))
 
 
 (defn find-root
@@ -148,8 +160,7 @@
              (pos? limit))
     (let [archive-dir (io/file dir ".hoard")]
       (if (f/directory? archive-dir)
-        (assoc (load-archive archive-dir)
-               :root (f/canonical dir))
+        (load-archive archive-dir)
         (recur (f/parent (f/canonical dir)) (dec limit))))))
 
 
@@ -189,9 +200,12 @@
   "Walk a filesystem depth-first, returning a sequence of file metadata. This
   includes the (relative) path, file type, size, permissions, and modified
   time."
-  [^File root ignored]
-  (let [ignore? (ignored-predicate root (conj (or ignored #{}) ".hoard"))
-        root-path (.toPath root)]
+  [archive]
+  (let [root (::root archive)
+        root-path (.toPath ^File root)
+        ignore? (ignored-predicate
+                  root
+                  (conj (::ignore archive #{}) ".hoard"))]
     (->>
       (f/walk-files ignore? root)
       (drop 1)
@@ -271,10 +285,11 @@
 
 (defn build-index
   "Build an index of the file tree under the root."
-  [cache-file ignored root]
-  (let [cache (read-cache cache-file)
+  [archive]
+  (let [cache-file (archive-file archive "cache" "tree")
+        cache (read-cache cache-file)
         stats (->>
-                (scan-files root ignored)
+                (scan-files archive)
                 (map (partial hash-file cache))
                 (sort-by :path)
                 (vec))

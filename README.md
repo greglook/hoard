@@ -36,8 +36,8 @@ local
 │   │   ├── 20201210-57391-defg
 │   │   └── ...
 │   └── cache                       cache directory, may be deleted
-│       ├── repos                   last-known vesrion stored in repos
-│       └── local                   content hashes of local files
+│       ├── repos                   last-known version stored in repos?
+│       └── tree                    content hashes of local files
 └── ...
 ```
 
