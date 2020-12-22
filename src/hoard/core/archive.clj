@@ -153,15 +153,17 @@
 
   The search will will terminate after `limit` recursions or once it hits the
   filesystem root or a directory the user can't read."
-  [^File dir limit]
-  (when (and dir
-             (f/directory? dir)
-             (f/readable? dir)
-             (pos? limit))
-    (let [archive-dir (io/file dir ".hoard")]
-      (if (f/directory? archive-dir)
-        (load-archive archive-dir)
-        (recur (f/parent (f/canonical dir)) (dec limit))))))
+  [^File dir]
+  (loop [^File dir dir
+         limit 100]
+    (when (and dir
+               (f/directory? dir)
+               (f/readable? dir)
+               (pos? limit))
+      (let [archive-dir (io/file dir ".hoard")]
+        (if (f/directory? archive-dir)
+          (load-archive archive-dir)
+          (recur (f/parent (f/canonical dir)) (dec limit)))))))
 
 
 
@@ -255,6 +257,7 @@
   "Write cache data to a file."
   [file cache]
   (when (and file (seq cache))
+    (io/make-parents file)
     (with-open [output (io/output-stream file)]
       (tsv/write-data!
         output
