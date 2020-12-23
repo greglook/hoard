@@ -2,8 +2,8 @@
   "Repository tasks."
   (:require
     [clojure.string :as str]
-    [hoard.core.archive :as archive]
-    [hoard.core.version :as version]
+    [hoard.data.archive :as archive]
+    [hoard.data.version :as version]
     [hoard.task.util :as u]))
 
 

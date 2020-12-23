@@ -1,7 +1,7 @@
 (ns hoard.store.core
   "Core storage protocols for hoard repositories."
   (:require
-    [hoard.core.version :as version]))
+    [hoard.data.version :as version]))
 
 
 (defprotocol ArchiveStore

@@ -1,11 +1,11 @@
-(ns hoard.core.archive
+(ns hoard.data.archive
   "Functions for managing the configuration and state in an archive's working
   tree."
   (:require
     [clojure.java.io :as io]
     [clojure.string :as str]
     [clojure.spec.alpha :as s]
-    [hoard.core.version :as version]
+    [hoard.data.version :as version]
     [hoard.file.core :as f]
     [hoard.file.tsv :as tsv]
     [multiformats.hash :as multihash])
@@ -286,7 +286,7 @@
 
 ;; ## Index Construction
 
-(defn build-index
+(defn index-tree
   "Build an index of the file tree under the root."
   [archive]
   (let [cache-file (archive-file archive "cache" "tree")

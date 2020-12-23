@@ -2,8 +2,8 @@
   "In-memory repository implementation."
   (:require
     [blocks.store.memory :refer [memory-block-store]]
-    [hoard.core.archive :as archive]
-    [hoard.core.version :as version]
+    [hoard.data.archive :as archive]
+    [hoard.data.version :as version]
     [hoard.store.core :as store])
   (:import
     java.time.Instant))
