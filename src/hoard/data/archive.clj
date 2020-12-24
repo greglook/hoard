@@ -7,10 +7,12 @@
     [clojure.spec.alpha :as s]
     [hoard.data.version :as version]
     [hoard.file.core :as f]
+    [hoard.file.ini :as ini]
     [hoard.file.tsv :as tsv]
     [multiformats.hash :as multihash])
   (:import
-    java.io.File))
+    java.io.File
+    java.time.Instant))
 
 
 ;; ## Specs
@@ -30,13 +32,13 @@
   inst?)
 
 
-;; Command used to encrypt files before storage.
-(s/def ::encrypt
+;; Command used to encode files before storage.
+(s/def ::encode-command
   (s/coll-of string? :kind vector?))
 
 
-;; Command used to decrypt files from storage.
-(s/def ::decrypt
+;; Command used to decode files from storage.
+(s/def ::decode-command
   (s/coll-of string? :kind vector?))
 
 
@@ -51,13 +53,40 @@
 
 
 
-;; ## Configuration
+;; ## Archive Config
 
-(defn- read-config
-  "Load configuration from a file under the `.hoard` directory."
-  [^File file]
-  ;; TODO: implement
-  {})
+(defn- hoard-file
+  "Return the file representing the given path into the archive's hidden
+  `.hoard` directory."
+  [archive & path]
+  (apply io/file (::root archive) ".hoard" path))
+
+
+(defn read-config
+  "Load configuration from the `.hoard` directory."
+  [archive]
+  (let [config-file (hoard-file archive "config")]
+    (when (and (f/file? config-file) (f/readable? config-file))
+      (into {}
+            (map (fn namespace-key
+                   [[k v]]
+                   [(keyword "hoard.data.archive" (name k))
+                    (case k
+                      :created-at
+                      (try
+                        ;; TODO: auto-parse in ini ns?
+                        (Instant/parse v)
+                        (catch Exception ex
+                          ;; TODO: warn
+                          nil))
+
+                      ;; TODO: support quoting?
+                      (:encode-command :decode-command)
+                      (str/split v #" +")
+
+                      ;; else
+                      v)]))
+            (ini/read config-file)))))
 
 
 
@@ -98,53 +127,55 @@
                    ignored))))
 
 
-(defn- read-ignores
+(defn read-ignores
   "Read a file of ignore patterns, or nil if the file does not exist or is not
   readable."
-  [^File ignore]
-  (when (and (f/file? ignore) (f/readable? ignore))
-    (with-open [patterns (io/reader ignore)]
-      (into #{}
-            (comp
-              (map str/trim)
-              (remove str/blank?)
-              (remove #(str/starts-with? % "#")))
-            (line-seq patterns)))))
+  [archive]
+  (let [ignore-file (hoard-file archive "ignore")]
+    (when (and (f/file? ignore-file) (f/readable? ignore-file))
+      (with-open [patterns (io/reader ignore-file)]
+        (into #{}
+              (comp
+                (map str/trim)
+                (remove str/blank?)
+                (remove #(str/starts-with? % "#")))
+              (line-seq patterns))))))
 
 
 
 ;; ## Archive Versions
 
-(defn- list-versions
+(defn list-versions
   "List the versions present in an archive directory."
-  [^File version-dir]
-  (into []
-        (map (fn version-meta
-               [^File version]
-               (let [id (f/file-name version)]
-                 {::version/id id
-                  ::version/size (f/size version)
-                  ::version/created-at (version/parse-id-inst id)})))
-        (f/list-files version-dir)))
+  [archive]
+  (let [versions-dir (hoard-file archive "versions")]
+    (into []
+          (map version/file-meta)
+          (f/list-files versions-dir))))
+
+
+(defn read-version
+  "Read a version from the archive by id."
+  [archive version-id]
+  (let [version-file (hoard-file archive "versions" version-id)]
+    (when (and (f/file? version-file) (f/readable? version-file))
+      (merge
+        (version/file-meta version-file)
+        (version/read-data version-file)))))
 
 
 
 ;; ## Archive Directories
 
 (defn- load-archive
-  "Load a map of archive configuration from the given `.hoard` directory."
-  [^File dir]
-  (assoc (read-config (io/file dir "config"))
-         ::root (f/parent (f/canonical dir))
-         ::ignore (or (read-ignores (io/file dir "ignore")) #{})
-         ::versions (list-versions (io/file dir "versions"))))
-
-
-(defn- archive-file
-  "Return the file representing the given path into the archive's hidden
-  directory."
-  [archive & path]
-  (apply io/file (::root archive) ".hoard" path))
+  "Load a map of archive configuration from the given directory which holds a
+  `.hoard` directory."
+  [root]
+  (let [base {::root (f/canonical root)}]
+    (merge (read-config base)
+           base
+           {::ignore (or (read-ignores base) #{})
+            ::versions (list-versions base)})))
 
 
 (defn find-root
@@ -153,17 +184,16 @@
 
   The search will will terminate after `limit` recursions or once it hits the
   filesystem root or a directory the user can't read."
-  [^File dir]
-  (loop [^File dir dir
+  [dir]
+  (loop [dir (f/canonical dir)
          limit 100]
     (when (and dir
                (f/directory? dir)
                (f/readable? dir)
                (pos? limit))
-      (let [archive-dir (io/file dir ".hoard")]
-        (if (f/directory? archive-dir)
-          (load-archive archive-dir)
-          (recur (f/parent (f/canonical dir)) (dec limit)))))))
+      (if (f/directory? (io/file dir ".hoard"))
+        (load-archive dir)
+        (recur (f/parent dir) (dec limit))))))
 
 
 
@@ -284,19 +314,45 @@
 
 
 
+;; ## Code Assignment
+
+(defn- coded-lookup
+  "Take data from a collection of versions and produce a lookup map from
+  content-id to coded-id."
+  [versions]
+  (into {}
+        (comp
+          (mapcat ::version/index)
+          (filter (every-pred :coded-id :content-id))
+          (map (juxt :coded-id :content-id)))
+        versions))
+
+
+(defn- assign-coded-id
+  "Using a lookup mapping of content-id to coded-id, update the given entry
+  with a `:coded-id` value if a match is found."
+  [content->coded entry]
+  (if-let [coded-id (some-> entry :content-id content->coded)]
+    (assoc entry :coded-id coded-id)
+    entry))
+
+
+
 ;; ## Index Construction
 
 (defn index-tree
   "Build an index of the file tree under the root."
   [archive]
-  (let [cache-file (archive-file archive "cache" "tree")
-        cache (read-cache cache-file)
+  (let [cache-file (hoard-file archive "cache" "tree")
+        tree-cache (read-cache cache-file)
+        content->coded (coded-lookup (take 3 (reverse (::versions archive))))
         stats (->>
                 (scan-files archive)
-                (map (partial hash-file cache))
+                (map (partial hash-file tree-cache))
+                (map (partial assign-coded-id content->coded))
                 (sort-by :path)
                 (vec))
-        cache' (build-cache stats)]
-    (when (not= cache cache')
-      (write-cache! cache-file cache'))
+        tree-cache' (build-cache stats)]
+    (when (not= tree-cache tree-cache')
+      (write-cache! cache-file tree-cache'))
     stats))
