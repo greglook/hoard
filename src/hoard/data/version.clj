@@ -4,13 +4,15 @@
     [clojure.spec.alpha :as s]
     [clojure.string :as str]
     [hoard.file.tsv :as tsv]
+    [hoard.file.core :as f]
     [multiformats.hash :as multihash])
   (:import
     (java.time
       Instant
       LocalDateTime
       ZoneOffset)
-    java.time.temporal.ChronoField))
+    java.time.temporal.ChronoField
+    multiformats.hash.Multihash))
 
 
 ;; ## Version Identifier
@@ -83,6 +85,15 @@
                 ::tree-size]))
 
 
+(defn file-meta
+  "Construct a map of version metadata from a file."
+  [file]
+  (let [id (f/file-name file)]
+    {::id id
+     ::size (f/size file)
+     ::created-at (parse-id-inst id)}))
+
+
 
 ;; ## Index Entries
 
@@ -121,8 +132,8 @@
   #(instance? Multihash %))
 
 
-;; Multihash digest of the encrypted file content.
-(s/def :hoard.data.version.index/crypt-id
+;; Multihash digest of the encoded file content.
+(s/def :hoard.data.version.index/coded-id
   #(instance? Multihash %))
 
 
@@ -135,7 +146,7 @@
           :opt-un [:hoard.data.version.index/size
                    :hoard.data.version.index/target
                    :hoard.data.version.index/content-id
-                   :hoard.data.version.index/crypt-id]))
+                   :hoard.data.version.index/coded-id]))
 
 
 ;; Sequence of index entry data.
@@ -172,7 +183,7 @@
    {:name :content-id
     :encode multihash/hex
     :decode multihash/parse}
-   {:name :crypt-id
+   {:name :coded-id
     :encode multihash/hex
     :decode multihash/parse}
    {:name :target}])
