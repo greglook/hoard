@@ -4,12 +4,12 @@
   (:require
     [clojure.stacktrace :as cst]
     [clojure.tools.cli :as cli]
+    [hoard.data.repository :as repo]
     [hoard.file.ini :as ini]
-    [hoard.repo.config :as cfg]
-    [hoard.task.list :as list]
-    [hoard.task.repo :as repo]
-    [hoard.task.show :as show]
-    [hoard.task.version :as version]
+    [hoard.task.list :as t.list]
+    [hoard.task.repo :as t.repo]
+    [hoard.task.show :as t.show]
+    [hoard.task.version :as t.version]
     [hoard.task.util :as tu]))
 
 
@@ -57,10 +57,10 @@
     (when (:help options)
       (case command
         ;"create"  (repo/print-create-usage)
-        "list"    (list/print-usage)
-        "show"    (show/print-usage)
+        "list"    (t.list/print-usage)
+        "show"    (t.show/print-usage)
         ;"init"
-        "version" (version/print-usage)
+        "version" (t.version/print-usage)
         (print-general-usage (parsed :summary)))
       (flush)
       (System/exit 0))
@@ -71,17 +71,17 @@
       (System/exit 1))
     ;; Execute requested command.
     (try
-      (let [config (ini/read (cfg/config-file))]
+      (let [config (ini/read (repo/config-file))]
         (tu/with-options options
           (case command
             ;"create"  (repo/create-repo config args)
-            "list"    (list/list-archives config args)
-            "show"    (show/show-info config args)
+            "list"    (t.list/list-archives config args)
+            "show"    (t.show/show-info config args)
             ;"init"    (archive/initialize-local config args)
             ;"status"  (archive/print-status config args)
             ;"keep"    (archive/keep-data config args)  (also, "save", "preserve")
             ;"restore" (archive/restore-data config args)
-            "version" (version/print-version args)
+            "version" (t.version/print-version args)
             (binding [*out* *err*]
               (println "Unknown hoard command:" command)
               (flush)

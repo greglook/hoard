@@ -2,7 +2,7 @@
   "Common task utilities."
   (:require
     [clojure.string :as str]
-    [hoard.repo.config :as cfg]
+    [hoard.data.repository :as repo]
     [hoard.store.file :refer [file-repository]]
     [hoard.store.memory :refer [memory-repository]]))
 
@@ -105,7 +105,7 @@
 (defn init-repo
   "Initialize a repository from the configuration."
   [config repo-name]
-  (let [repo-config (cfg/repo-config config repo-name)]
+  (let [repo-config (repo/repo-config config repo-name)]
     (when-not repo-config
       (printerr "could not find configuration for repository" repo-name)
       (exit! 2))

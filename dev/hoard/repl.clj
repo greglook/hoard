@@ -8,7 +8,6 @@
     [hoard.data.archive :as archive]
     [hoard.data.repository :as repo]
     [hoard.data.version :as version]
-    [hoard.repo.config :as cfg]
     [manifold.deferred :as d]))
 
 
