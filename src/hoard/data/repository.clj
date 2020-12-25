@@ -45,8 +45,8 @@
 
 ;; ## Storage Protocol
 
-(defprotocol VersionStore
-  "Storage protocol for at-rest archive version data."
+(defprotocol ArchiveStore
+  "Storage protocol for at-rest archive data."
 
   (-list-archives
     [store opts]
@@ -76,6 +76,22 @@
     [store archive-name version-id]
     "Removes a version of an archive from the repository. Returns true if the
     version was present and removed, false otherwise."))
+
+
+;; TODO: component lifecycle behavior?
+(defrecord ComponentRepository
+  [archives blocks])
+
+
+(alter-meta! #'->ComponentRepository assoc :private true)
+(alter-meta! #'map->ComponentRepository assoc :private true)
+
+
+(defn component-repository
+  "Construct a new repository using separate archive and block data backing
+  components."
+  [opts]
+  (map->ComponentRepository opts))
 
 
 

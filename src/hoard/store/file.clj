@@ -42,18 +42,19 @@
 
 
 
-;; ## Repository Type
+;; ## Archive Store
 
-(defrecord FileVersionStore
+(defrecord FileArchiveStore
   [^File root]
 
-  repo/VersionStore
+  repo/ArchiveStore
 
   (-list-archives
     [this query]
-    (mapv archive-dir-meta (.listFiles root)))
+    (map archive-dir-meta (.listFiles root)))
 
 
+  ;; how does this read config and ignore data?
   (-get-archive
     [this archive-name]
     (archive-dir-meta (io/file root archive-name)))
@@ -61,7 +62,9 @@
 
   (-stat-version
     [store archive-name version-id]
-    ,,,)
+    (let [version-file (io/file root archive-name version-id)]
+      (when (.exists version-file)
+        (version-file-meta version-file))))
 
 
   (-read-version
@@ -83,19 +86,23 @@
     [this archive-name version-id]
     (let [version-file (io/file root archive-name version-id)]
       (if (.exists version-file)
-        (do (.delete version-file) true)
+        (do (.delete version-file)
+            true)
         false))))
 
 
-(alter-meta! #'->FileVersionStore assoc :private true)
-(alter-meta! #'map->FileVersionStore assoc :private true)
+(alter-meta! #'->FileArchiveStore assoc :private true)
+(alter-meta! #'map->FileArchiveStore assoc :private true)
 
+
+
+;; ## Repository
 
 (defn file-repository
-  "Construct a new in-memory data repository."
+  "Construct a new local file data repository."
   [opts]
   (let [root (io/file (:root opts))]
-    (identity
+    (repo/component-repository
       (assoc opts
-             :versions (->FileVersionStore (io/file root "archive"))
+             :archives (->FileArchiveStore (io/file root "archive"))
              :blocks (file-block-store (io/file root "data"))))))
