@@ -5,29 +5,7 @@
   syntax is loosely based on TOML or INI files."
   (:require
     [clojure.java.io :as io]
-    [clojure.string :as str]
-    [clojure.walk :as walk]))
-
-
-;; ## Options
-
-(def ^:dynamic *options*
-  "Runtime options."
-  {})
-
-
-(defmacro with-options
-  "Evaluate the expressions in `body` with the print options bound to `opts`."
-  [opts & body]
-  `(binding [*options* ~opts]
-     ~@body))
-
-
-(defn option
-  "Return the value set for the given option, if any."
-  [k]
-  (get *options* k))
-
+    [clojure.string :as str]))
 
 
 ;; ## Configuration File

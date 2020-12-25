@@ -3,8 +3,8 @@
   (:require
     [blocks.store.memory :refer [memory-block-store]]
     [hoard.data.archive :as archive]
-    [hoard.data.version :as version]
-    [hoard.store.core :as store])
+    [hoard.data.repository :as repo]
+    [hoard.data.version :as version])
   (:import
     java.time.Instant))
 
@@ -13,7 +13,7 @@
 (defrecord MemoryRepository
   [archives]
 
-  store/ArchiveStore
+  repo/VersionStore
 
   (list-archives
     [this query]

@@ -6,9 +6,9 @@
     [clojure.string :as str]
     [clojure.tools.namespace.repl :refer [refresh]]
     [hoard.data.archive :as archive]
+    [hoard.data.repository :as repo]
     [hoard.data.version :as version]
     [hoard.repo.config :as cfg]
-    [hoard.stuff :as stuff]
     [manifold.deferred :as d]))
 
 

@@ -7,6 +7,27 @@
     [hoard.store.memory :refer [memory-repository]]))
 
 
+;; ## Options
+
+(def ^:dynamic *options*
+  "Runtime options."
+  {})
+
+
+(defmacro with-options
+  "Evaluate the expressions in `body` with the print options bound to `opts`."
+  [opts & body]
+  `(binding [*options* ~opts]
+     ~@body))
+
+
+(defn option
+  "Return the value set for the given option, if any."
+  [k]
+  (get *options* k))
+
+
+
 ;; ## Coloring
 
 (def ^:private ansi-codes
@@ -47,7 +68,7 @@
 (defn log
   "Log a message which will only be printed when verbose output is enabled."
   [& messages]
-  (when (cfg/option :verbose)
+  (when (option :verbose)
     (apply printerr messages))
   nil)
 
@@ -56,7 +77,7 @@
   "Log a formatted message which will only be printed when verbose output is
   enabled."
   [message & fmt-args]
-  (when (cfg/option :verbose)
+  (when (option :verbose)
     (apply printerrf message fmt-args))
   nil)
 

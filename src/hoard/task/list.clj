@@ -2,8 +2,8 @@
   (:require
     [clojure.string :as str]
     [hoard.data.archive :as archive]
+    [hoard.data.repository :as repo]
     [hoard.data.version :as version]
-    [hoard.store.core :as store]
     [hoard.task.util :as u]))
 
 
@@ -38,7 +38,7 @@
       [repo-name]
       (let [repo (u/init-repo config repo-name)]
         (->>
-          (store/list-archives (:archives repo) {})
+          (repo/list-archives repo {})
           (sort-by ::archive/name)
           (run! (partial print-archive repo-name)))
         (flush)))

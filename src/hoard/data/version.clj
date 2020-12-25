@@ -154,6 +154,19 @@
   (s/coll-of ::index-entry :kind sequential?))
 
 
+(defn create-version
+  "Create a new version using the provided index data. Generates an id if one
+  is not provided."
+  ([index]
+   (create-version (gen-id) index))
+  ([version-id index]
+   {::id version-id
+    ::created-at (parse-id-inst version-id)
+    ::tree-count (count index)
+    ::tree-size (apply + (keep :size index))
+    ::index index}))
+
+
 
 ;; ## File Format
 

@@ -4,8 +4,8 @@
     [blocks.store.file :refer [file-block-store]]
     [clojure.java.io :as io]
     [hoard.data.archive :as archive]
-    [hoard.data.version :as version]
-    [hoard.store.core :as store])
+    [hoard.data.repository :as repo]
+    [hoard.data.version :as version])
   (:import
     java.io.File
     java.time.Instant))
@@ -44,29 +44,34 @@
 
 ;; ## Repository Type
 
-(defrecord FileArchiveStore
+(defrecord FileVersionStore
   [^File root]
 
-  store/ArchiveStore
+  repo/VersionStore
 
-  (list-archives
+  (-list-archives
     [this query]
     (mapv archive-dir-meta (.listFiles root)))
 
 
-  (get-archive
+  (-get-archive
     [this archive-name]
     (archive-dir-meta (io/file root archive-name)))
 
 
-  (read-version
+  (-stat-version
+    [store archive-name version-id]
+    ,,,)
+
+
+  (-read-version
     [this archive-name version-id]
     (let [version-file (io/file root archive-name version-id)]
       (when (.exists version-file)
         (io/input-stream version-file))))
 
 
-  (store-version!
+  (-store-version!
     [this archive-name version-id content]
     (let [version-file (io/file root archive-name version-id)]
       (io/make-parents version-file)
@@ -74,7 +79,7 @@
       (version-file-meta version-file)))
 
 
-  (remove-version!
+  (-remove-version!
     [this archive-name version-id]
     (let [version-file (io/file root archive-name version-id)]
       (if (.exists version-file)
@@ -82,8 +87,8 @@
         false))))
 
 
-(alter-meta! #'->FileArchiveStore assoc :private true)
-(alter-meta! #'map->FileArchiveStore assoc :private true)
+(alter-meta! #'->FileVersionStore assoc :private true)
+(alter-meta! #'map->FileVersionStore assoc :private true)
 
 
 (defn file-repository
@@ -92,5 +97,5 @@
   (let [root (io/file (:root opts))]
     (identity
       (assoc opts
-             :archives (->FileArchiveStore (io/file root "archive"))
+             :versions (->FileVersionStore (io/file root "archive"))
              :blocks (file-block-store (io/file root "data"))))))

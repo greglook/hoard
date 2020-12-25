@@ -2,8 +2,8 @@
   (:require
     [clojure.string :as str]
     [hoard.data.archive :as archive]
+    [hoard.data.repository :as repo]
     [hoard.data.version :as version]
-    [hoard.store.core :as store]
     [hoard.task.util :as u]))
 
 

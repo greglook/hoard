@@ -15,7 +15,7 @@
     java.time.Instant))
 
 
-;; ## Specs
+;; ## Data Specs
 
 ;; Unique identifying name for the archive.
 (s/def ::name
@@ -317,15 +317,17 @@
 ;; ## Code Assignment
 
 (defn- coded-lookup
-  "Take data from a collection of versions and produce a lookup map from
+  "Take data from the most recent `n` versions and produce a lookup map from
   content-id to coded-id."
-  [versions]
+  [archive n]
   (into {}
         (comp
+          (take n)
+          (map #(read-version archive (::version/id %)))
           (mapcat ::version/index)
           (filter (every-pred :coded-id :content-id))
           (map (juxt :coded-id :content-id)))
-        versions))
+        (reverse (::versions archive))))
 
 
 (defn- assign-coded-id
@@ -345,7 +347,7 @@
   [archive]
   (let [cache-file (hoard-file archive "cache" "tree")
         tree-cache (read-cache cache-file)
-        content->coded (coded-lookup (take 3 (reverse (::versions archive))))
+        content->coded (coded-lookup archive 3)
         stats (->>
                 (scan-files archive)
                 (map (partial hash-file tree-cache))

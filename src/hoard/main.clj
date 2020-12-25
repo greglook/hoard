@@ -9,7 +9,8 @@
     [hoard.task.list :as list]
     [hoard.task.repo :as repo]
     [hoard.task.show :as show]
-    [hoard.task.version :as version]))
+    [hoard.task.version :as version]
+    [hoard.task.util :as tu]))
 
 
 (def ^:private cli-options
@@ -71,7 +72,7 @@
     ;; Execute requested command.
     (try
       (let [config (ini/read (cfg/config-file))]
-        (cfg/with-options options
+        (tu/with-options options
           (case command
             ;"create"  (repo/create-repo config args)
             "list"    (list/list-archives config args)
