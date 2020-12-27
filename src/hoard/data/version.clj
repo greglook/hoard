@@ -154,17 +154,18 @@
   (s/coll-of ::index-entry :kind sequential?))
 
 
-(defn create-version
+(defn create
   "Create a new version using the provided index data. Generates an id if one
   is not provided."
   ([index]
-   (create-version (gen-id) index))
+   (create (gen-id) index))
   ([version-id index]
    {::id version-id
     ::created-at (parse-id-inst version-id)
     ::tree-count (count index)
     ::tree-size (apply + (keep :size index))
-    ::index index}))
+    ::index (mapv #(select-keys % [:path :type :permissions :modified-at :size :target :content-id :coded-id])
+                  index)}))
 
 
 
@@ -203,16 +204,16 @@
 
 
 (defn- v1-write!
-  "Write the header and index entries to the given output stream."
-  [out entries]
-  (when-not (s/valid? ::entries entries)
+  "Write the header and index rows to the given output stream."
+  [out index]
+  (when-not (s/valid? ::index index)
     (throw (ex-info (str "Cannot write invalid index entry data: "
-                         (s/explain-str ::entries entries))
+                         (s/explain-str ::index index))
                     {})))
   (binding [*out* (io/writer out)]
     (println v1-format)
     (flush))
-  (tsv/write-data! out v1-columns entries))
+  (tsv/write-data! out v1-columns index))
 
 
 ;; ### General Format

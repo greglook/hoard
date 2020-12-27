@@ -8,6 +8,8 @@
     [clojure.string :as str]
     [hoard.data.archive :as archive]
     [hoard.data.version :as version]
+    [hoard.data.work :as work]
+    [hoard.file.core :as f]
     [hoard.file.tsv :as tsv]
     [manifold.deferred :as d]
     [multiformats.hash :as multihash])
@@ -134,14 +136,6 @@
 
 ;; ## Process Piping
 
-(defn- stopwatch
-  "Create a delay which yields the number of milliseconds between the time this
-  function was called and when it was realized."
-  []
-  (let [start (System/nanoTime)]
-    (delay (/ (- (System/nanoTime) start) 1e6))))
-
-
 (defn- piped-streams
   "Construct a pair of connected output and input streams, forming a pipe.
   Returns a tuple of the output stream sink and the input stream source."
@@ -152,8 +146,8 @@
 
 
 (defn- future-copy
-  "Copy all of the data from `in` to `out` on a new thread, closing `in` after.
-  Does *not* close `out`. Returns a future which yields true when the copy is
+  "Copy all of the data from `in` to `out` on a new thread, closing both
+  streams afterward. Returns a future which yields true when the copy is
   complete."
   [^InputStream in ^OutputStream out]
   (future
@@ -161,7 +155,8 @@
       (io/copy in out)
       true
       (finally
-        (.close in)))))
+        (.close in)
+        (.close out)))))
 
 
 (defn- pipe-process
@@ -172,7 +167,7 @@
   (d/future
     ;; TODO: what to do if the process needs human input?
     ;; Graphical pinentry programs work
-    (let [elapsed (stopwatch)
+    (let [elapsed (work/stopwatch)
           process (.start (ProcessBuilder. ^java.util.List command))
           stdin (CountingOutputStream. (.getOutputStream process))
           stdout (CountingInputStream. (.getInputStream process))
@@ -202,6 +197,48 @@
 
 ;; ## Version IO
 
+(defn- push-version!
+  "Push a version from the archive to the repository."
+  [repo archive version-id]
+  (work/with-file-input [raw-in (archive/version-file archive version-id)]
+    {:label (str "Push version " version-id " to repository")}
+    (let [[proc-sink proc-src] (piped-streams 4096)
+          [store-sink store-src] (piped-streams 4096)
+          gzip-out (GZIPOutputStream. proc-sink)
+          count-out (CountingOutputStream. gzip-out)]
+      (->
+        (d/zip
+          (d/future
+            (try
+              (io/copy raw-in count-out)
+              (finally
+                (.close count-out))))
+          (if-let [command (::archive/encode-command archive)]
+            (pipe-process command proc-src store-sink)
+            (future-copy proc-src store-sink))
+          (d/future
+            (-store-version!
+              (:archives repo)
+              (::archive/name archive)
+              version-id
+              store-src)))
+        (d/chain
+          (fn [[_ proc-data version-meta]]
+            [proc-data version-meta]))))))
+
+
+(defn- pull-version!
+  "Pull a version from the repo to the archive."
+  [repo archive version-id]
+  #_
+  (with-open [coded-in (-read-version
+                         (:archives repo)
+                         (::archive/name archive)
+                         version-id)]
+    ,,,))
+
+
+#_
 (defn- encode-version
   "Writes a sequence of version index data to the given output stream, after
   compressing it and running it through the given command. Returns a deferred
@@ -222,6 +259,7 @@
            :output-bytes :encoded-size})))))
 
 
+#_
 (defn- decode-version
   "Read version index data from the given input stream. Returns a deferred
   which yields the process result with the version data under `:version` on
@@ -256,18 +294,16 @@
 (defn- store-file!
   "Write a file from the input to the block store after encoding it with the
   command. Returns the process results with the stored `:block` key."
-  [block-store encode-command file]
-  (let [[pipe-sink pipe-src] (piped-streams 4096)
-        file-in (io/input-stream file)]
-    (->
-      (d/zip
-        (pipe-process encode-command file-in pipe-sink)
-        (block/store! block-store pipe-src))
-      (d/chain
-        (fn [[proc block]]
-          (assoc proc :block block)))
-      (d/finally
-        #(.close file-in)))))
+  [block-store encode-command file-in]
+  (d/chain
+    (if encode-command
+      (let [[pipe-sink pipe-src] (piped-streams 4096)]
+        (d/zip
+          (pipe-process encode-command file-in pipe-sink)
+          (block/store! block-store pipe-src)))
+      (d/zip nil (block/store! block-store file-in)))
+    (fn [[proc block]]
+      (assoc proc :block block))))
 
 
 (defn- read-file
@@ -312,44 +348,88 @@
 
 ;; ## Version Storage
 
+(defn plan-version
+  "Produce a plan for capturing the local archive state as a new version in the
+  repository. Returns a deferred which yields the index of file entries with
+  associated `::action` keywords."
+  [repo archive]
+  (d/chain
+    (d/future
+      (archive/index-tree archive))
+    (fn check-blocks
+      [file-stats]
+      (d/zip file-stats
+             (block/get-batch
+               (:blocks repo)
+               (keep :coded-id file-stats))))
+    (fn plan-files
+      [[file-stats coded-blocks]]
+      (let [stored? (into #{} (keep :id) coded-blocks)]
+        (mapv
+          (fn add-action
+            [stats]
+            (cond
+              ;; No content in this file, nothing to do.
+              (nil? (:content-id stats))
+              (assoc stats ::action :none)
+
+              ;; Coded data is already available in repo.
+              (stored? (:coded-id stats))
+              (assoc stats ::action :reuse)
+
+              ;; Otherwise no known coded id or coded data unavailable.
+              :else
+              (assoc stats ::action :store)))
+          file-stats)))))
+
+
 (defn- store-index-files!
   "Store the given index into the block-store. Returns the updated index
   sequence, with every entry which has a `:content-id` given a matching
   `:coded-id`."
-  [block-store encode-command file-stats]
-  (d/loop [index []
-           stats file-stats]
-    (if (seq stats)
-      ;; Process the next file.
-      (let [entry (first stats)]
-        (if-let [content-id (:content-id entry)]
-          ;; Check if block store already has data.
-          (d/chain
-            (when-let [block-id (:coded-id entry)]
-              (block/get block-store block-id))
-            (fn store-file
-              [block]
-              (if block
-                {:block block}
-                (store-file! block-store encode-command (:file entry))))
-            :block
-            (fn add-coded
-              [block]
-              (let [entry' (assoc entry :coded-id (:id block))]
-                (d/recur (conj index entry') (rest stats)))))
-          ;; No content in entry.
-          (d/recur (conj index entry) (rest stats))))
-      ;; Done processing index
-      (version/create-version index))))
+  [repo archive plan]
+  ;; TODO: should be able to choose parallelism here
+  (work/for-progress [[content-id entry] (into {}
+                                               (comp
+                                                 (filter #(= :store (::action %)))
+                                                 (map (juxt :content-id identity)))
+                                               plan)]
+    {:label "Store encoded files to repository"}
+    (work/with-file-input [file-in (:file entry)]
+      {:label (str "Encode file " (:path entry))}
+      (let [result @(store-file!
+                      (:blocks repo)
+                      (::archive/encode-command archive)
+                      file-in)]
+        [content-id (:id (:block result))]))))
 
 
-;; Creating a new Version
-;; 1. (archive/index-tree archive) => index
-;; 2. (store-index-files! block-store (::archive/encode-command archive) index) => version-params
-;; 3. (store-version! version-store (::archive/name archive) version-params) => version
-;; 4. (archive/store-version! archive version) => archive'
+(defn create-version!
+  "Execute the provided planned index in order to create a new version."
+  [repo archive plan]
+  (let [content->coded (into {} (store-index-files! repo archive plan))
+        index (into []
+                    (map (fn assign-coded
+                           [entry]
+                           (if-let [coded-id (content->coded (:content-id entry))]
+                             (assoc entry :coded-id coded-id)
+                             entry)))
+                    plan)
+        version (version/create index)
+        version-id (::version/id version)]
+    (work/watch {:label "Write version to archive"}
+      (archive/write-version! archive version))
+    (push-version! repo archive version-id)
+    version))
 
 
+
+
+
+
+;; ## Other
+
+#_
 (defn diff-version
   [last-version index]
   ;; compare entries from the version and the current index

@@ -58,6 +58,7 @@
 (defn- hoard-file
   "Return the file representing the given path into the archive's hidden
   `.hoard` directory."
+  ^File
   [archive & path]
   (apply io/file (::root archive) ".hoard" path))
 
@@ -145,6 +146,14 @@
 
 ;; ## Archive Versions
 
+(defn version-file
+  "Return the file object representing the identified version. Makes no
+  guarantee that the file or its parents are present."
+  ^File
+  [archive version-id]
+  (hoard-file archive "versions" version-id))
+
+
 (defn list-versions
   "List the versions present in an archive directory."
   [archive]
@@ -157,11 +166,29 @@
 (defn read-version
   "Read a version from the archive by id."
   [archive version-id]
-  (let [version-file (hoard-file archive "versions" version-id)]
-    (when (and (f/file? version-file) (f/readable? version-file))
+  (let [file (version-file archive version-id)]
+    (when (and (f/file? file) (f/readable? file))
       (merge
-        (version/file-meta version-file)
-        (version/read-data version-file)))))
+        (version/file-meta file)
+        (version/read-data file)))))
+
+
+(defn write-version!
+  "Write a version data structure to a file in the archive."
+  [archive version]
+  (let [version-id (::version/id version)
+        file (version-file archive version-id)]
+    (io/make-parents file)
+    (try
+      (with-open [out (io/output-stream file)]
+        (version/write-data! out version))
+      (catch Exception ex
+        (try
+          (.delete file)
+          (catch Exception _
+            nil))
+        (throw ex)))
+    version))
 
 
 
@@ -340,7 +367,7 @@
 
 
 
-;; ## Index Construction
+;; ## Version Construction
 
 (defn index-tree
   "Build an index of the file tree under the root."

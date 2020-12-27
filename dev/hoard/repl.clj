@@ -8,9 +8,14 @@
     [hoard.data.archive :as archive]
     [hoard.data.repository :as repo]
     [hoard.data.version :as version]
+    [hoard.store.file :refer [file-repository]]
+    [hoard.store.memory :refer [memory-repository]]
     [manifold.deferred :as d]))
 
 
-(defn get-archive
-  []
+(def repo
+  (memory-repository {}))
+
+
+(def archive
   (archive/find-root (io/file "example")))
