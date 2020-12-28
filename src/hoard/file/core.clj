@@ -167,10 +167,31 @@
   "Return the integer permission bitmask for the given file."
   [^File file]
   (when file
-  (-> (.toPath file)
-      (Files/getPosixFilePermissions
-        (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
-      (permissions->bits))))
+    (-> (.toPath file)
+        (Files/getPosixFilePermissions
+          (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
+        (permissions->bits))))
+
+
+
+;; ## Actions
+
+(defn delete!
+  "Remove the file. Does not check for existence first."
+  [^File file]
+  (when file
+    (.delete file)))
+
+
+(defn safely-delete!
+  "Safely remove the file. Will not throw exceptions."
+  [^File file]
+  (when file
+    (try
+      (.delete file)
+      nil
+      (catch Exception _
+        nil))))
 
 
 

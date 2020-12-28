@@ -183,10 +183,7 @@
       (with-open [out (io/output-stream file)]
         (version/write-data! out version))
       (catch Exception ex
-        (try
-          (.delete file)
-          (catch Exception _
-            nil))
+        (f/safely-delete! file)
         (throw ex)))
     version))
 

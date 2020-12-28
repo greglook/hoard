@@ -5,7 +5,8 @@
     [clojure.java.io :as io]
     [hoard.data.archive :as archive]
     [hoard.data.repository :as repo]
-    [hoard.data.version :as version])
+    [hoard.data.version :as version]
+    [hoard.file.core :as f])
   (:import
     java.io.File
     java.time.Instant))
@@ -13,12 +14,18 @@
 
 ;; ## Utilities
 
+(defn- reserved-id?
+  "True if the provided version identifier is reserved for internal use."
+  [id]
+  (= "config" id))
+
+
 (defn- version-file-meta
   "Return a map of metadata about a version file."
   [^File file]
-  (let [version-id (.getName file)]
+  (let [version-id (f/file-name file)]
     {::version/id version-id
-     ::version/size (.length file)
+     ::version/size (f/size file)
      ::version/created-at (version/parse-id-inst version-id)}))
 
 
@@ -26,7 +33,7 @@
   "List the version metadata from an archive directory."
   [^File archive-dir]
   (->>
-    (.listFiles archive-dir)
+    (f/list-files archive-dir)
     (map version-file-meta)
     (sort-by ::version/id)
     (vec)))
@@ -36,8 +43,8 @@
   "Load the metadata about an archive directory, including a list of version
   metadata."
   [^File archive-dir]
-  (when (.exists archive-dir)
-    {::archive/name (.getName archive-dir)
+  (when (f/exists? archive-dir)
+    {::archive/name (f/file-name archive-dir)
      ::archive/versions (list-version-meta archive-dir)}))
 
 
@@ -51,7 +58,7 @@
 
   (-list-archives
     [this query]
-    (map archive-dir-meta (.listFiles root)))
+    (map archive-dir-meta (f/list-files root)))
 
 
   ;; how does this read config and ignore data?
@@ -62,20 +69,26 @@
 
   (-stat-version
     [store archive-name version-id]
-    (let [version-file (io/file root archive-name version-id)]
-      (when (.exists version-file)
-        (version-file-meta version-file))))
+    (when-not (reserved-id? version-id)
+      (let [version-file (io/file root archive-name version-id)]
+        (when (f/exists? version-file)
+          (version-file-meta version-file)))))
 
 
   (-read-version
     [this archive-name version-id]
-    (let [version-file (io/file root archive-name version-id)]
-      (when (.exists version-file)
-        (io/input-stream version-file))))
+    (when-not (reserved-id? version-id)
+      (let [version-file (io/file root archive-name version-id)]
+        (when (f/exists? version-file)
+          (io/input-stream version-file)))))
 
 
   (-store-version!
     [this archive-name version-id content]
+    (when (reserved-id? version-id)
+      (throw (ex-info (format "Cannot store version for reserved file name '%s'"
+                              version-id)
+                      {::version/id version-id})))
     (let [version-file (io/file root archive-name version-id)]
       (io/make-parents version-file)
       (io/copy content version-file)
@@ -85,10 +98,16 @@
   (-remove-version!
     [this archive-name version-id]
     (let [version-file (io/file root archive-name version-id)]
-      (if (.exists version-file)
-        (do (.delete version-file)
-            true)
-        false))))
+      (cond
+        (reserved-id? version-id)
+        false
+
+        (not (f/exists? version-file))
+        false
+
+        :else
+        (do (f/delete! version-file)
+            true)))))
 
 
 (alter-meta! #'->FileArchiveStore assoc :private true)
