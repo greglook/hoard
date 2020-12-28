@@ -34,6 +34,7 @@
   [^File archive-dir]
   (->>
     (f/list-files archive-dir)
+    (remove (comp reserved-id? f/file-name))
     (map version-file-meta)
     (sort-by ::version/id)
     (vec)))
@@ -61,10 +62,23 @@
     (map archive-dir-meta (f/list-files root)))
 
 
-  ;; how does this read config and ignore data?
   (-get-archive
     [this archive-name]
     (archive-dir-meta (io/file root archive-name)))
+
+
+  (-get-archive-config
+    [this archive-name]
+    (let [config-file (io/file root archive-name "config")]
+      (when (f/exists? config-file)
+        (slurp config-file))))
+
+
+  (-store-archive-config!
+    [store archive-name content]
+    (let [config-file (io/file root archive-name "config")]
+      (io/make-parents config-file)
+      (spit config-file content)))
 
 
   (-stat-version

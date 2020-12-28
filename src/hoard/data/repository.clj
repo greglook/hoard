@@ -58,7 +58,16 @@
   (-get-archive
     [store archive-name]
     "Retrieve information about a specific archive. Returns nil if no such
-    archive is present. Versions are returned in time-ascending order.")
+    archive is present. Version metadata is returned in time-ascending order.")
+
+  (-get-archive-config
+    [store archive-name]
+    "Return the text content of the configuration file stored for the named
+    archive. Reurns nil if no such archive exists.")
+
+  (-store-archive-config!
+    [store archive-name content]
+    "Store a configuration file for the named archive.")
 
   (-stat-version
     [store archive-name version-id]
