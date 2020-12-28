@@ -14,7 +14,8 @@
 
 
 (def repo
-  (memory-repository {}))
+  (file-repository
+    {:root "repo"}))
 
 
 (def archive

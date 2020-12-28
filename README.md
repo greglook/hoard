@@ -1,11 +1,20 @@
 Hoard
 =====
 
-Hoard is a command-line tool for incrementally managing secure, encrypted
-backups of your important files.
+> Some pithy quote about a dragon's hoard.
+
+Hoard is a command-line tool for managing backups of your important files. It
+is designed to securely store backup snapshots of a directory tree in
+_untrusted storage mediums_ like a portable drive or a cloud provider.
 
 
 ## Design
+
+Hoard is built around three concepts - storage _repositories_, file _archives_,
+and snapshot _versions_ of those archives.
+
+
+### Concepts
 
 git-like index into a content-addressed store of files, but all the objects are encrypted
 

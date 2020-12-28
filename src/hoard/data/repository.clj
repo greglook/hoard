@@ -130,6 +130,7 @@
     m))
 
 
+;; TODO: update this?
 (defn repo-config
   "Parse the configuration for a repository from the config data. Returns the
   config merged with defaults, or nil if no such repository is configured."
@@ -329,15 +330,24 @@
   "List metadata about the archives present in the repository. Returns a
   deferred which yields a sequence of the metadata maps ordered by name."
   [repo query]
-  ,,,)
+  (d/future
+    (->> (-list-archives (:archives repo) query)
+         (sort-by ::archive/name)
+         (vec))))
 
 
 (defn get-archive
   "Retrieve information about a specific archive. Returns a deferred which
   yields metadata about the archive, or nil if no such archive is present.
   Versions are returned in time-ascending order."
-  [repo archive-name]
-  ,,,)
+  ([repo archive-name]
+   (get-archive repo archive-name false))
+  ([repo archive-name config?]
+   (d/future
+     (when-let [archive (-get-archive (:archives repo) archive-name)]
+       (if config?
+         (assoc archive ::archive/config-text (-get-archive-config (:archives repo) archive-name))
+         archive)))))
 
 
 (defn get-version
@@ -367,6 +377,7 @@
       (archive/index-tree archive))
     (fn check-blocks
       [file-stats]
+      ;; TODO: progress reporting on block checking?
       (d/zip file-stats
              (block/get-batch
                (:blocks repo)
@@ -426,6 +437,10 @@
                     plan)
         version (version/create index)
         version-id (::version/id version)]
+    ;; TODO: check equivalence with previous version?
+    ;; If new index is equal to the index of the most recent version in the
+    ;; archive AND that version exists in the repo, reuse the last archive
+    ;; version. May be better to do this logic at a higher level.
     (work/watch {:label "Write version to archive"}
       (archive/write-version! archive version))
     (push-version! repo archive version-id)
