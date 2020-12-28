@@ -344,14 +344,16 @@
   "Take data from the most recent `n` versions and produce a lookup map from
   content-id to coded-id."
   [archive n]
-  (into {}
-        (comp
-          (take n)
-          (map #(read-version archive (::version/id %)))
-          (mapcat ::version/index)
-          (filter (every-pred :coded-id :content-id))
-          (map (juxt :coded-id :content-id)))
-        (reverse (::versions archive))))
+  (->>
+    (::versions archive)
+    (reverse)
+    (take n)
+    (reverse)
+    (map #(read-version archive (::version/id %)))
+    (mapcat ::version/index)
+    (filter (every-pred :coded-id :content-id))
+    (map (juxt :content-id :coded-id))
+    (into {})))
 
 
 (defn- assign-coded-id
