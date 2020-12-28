@@ -4,36 +4,21 @@ Hoard
 > Some pithy quote about a dragon's hoard.
 
 Hoard is a command-line tool for managing backups of your important files. It
-is designed to securely store backup snapshots of a directory tree in
-_untrusted storage mediums_ like a portable drive or a cloud provider.
+is designed to safely store backup snapshots of a directory tree in insecure
+storage mediums like a portable drive or a cloud provider.
 
 
 ## Design
 
-Hoard is built around three concepts - storage _repositories_, file _archives_,
-and snapshot _versions_ of those archives.
+Hoard is built around three concepts - file archives, snapshot versions, and
+storage repositories. Put simply, you work locally with files in an archive,
+then you store new versions of those files in one or more repositories.
 
+### Archives
 
-### Concepts
-
-git-like index into a content-addressed store of files, but all the objects are encrypted
-
-index preserves attributes:
-- path
-- type (directory, file, symlink)
-- permissions
-- mtime
-- target
-
-
-### User Config
-
-User configuration is stored at `$HOME/.config/hoard/config`.
-It contains configuration about how to connect to repositories which the user
-wants to interact with.
-
-
-### Local Structure
+An _archive_ is defined by a local working tree that contains a `.hoard`
+directory. All of the files under the root are part of the archive and will be
+preserved in new versions by default.
 
 ```
 local
@@ -45,19 +30,49 @@ local
 │   │   ├── 20201210-57391-defg
 │   │   └── ...
 │   └── cache                       cache directory, may be deleted
-│       ├── repos                   last-known version stored in repos?
 │       └── tree                    content hashes of local files
-└── ...
+└── ...files...
 ```
 
 The archive configuration contains:
 - archive name
-- encryption/decryption settings
-- created-at time?
-- specific trim settings?
+- encoding/decoding settings
+- created-at timestamp
 
+Locally, the files in an archive are regular, raw files. When they are stored
+into a repository, they are _encoded_ using the command specified in the
+archive configuration. When they are read from the repo, they are _decoded_
+using the corresponding command from the config. This is the way files are
+secured for storage in untrusted or insecure mediums. For example, to use `gpg`
+to encrypt your files, you'd set the following config:
 
-### Repository Structure
+```
+encode-command = gpg --encrypt --armor --recipient you@example.com
+decode-command = gpg --decrypt --batch --status-fd 2
+```
+
+### Versions
+
+A _version_ captures the exact state of the files within an archive at a
+specific point in time. This includes directories, symlinks, permissions, and
+timestamps in addition to file contents.
+
+Each version is stored as an index of the tree with pointers to both the raw
+file hashes as well as the encoded block hashes. When comparing the current
+archive state to the most recent version, this lets the tool determine just
+the files that are different and need to be encoded and stored again.
+
+### Repositories
+
+A _repository_ is a storage location which can hold versions and data for
+multiple archives. For example, you might define a repository for a local
+filesystem on a USB storage drive, to back up your files to.
+
+Repository configuration is stored in `$HOME/.config/hoard/config`. Each
+repository is configured in a section under the `repository` key, so a repo
+named "local" would be under `[repository.local]`.
+
+Conceptually, file-backed repositories are laid out like this:
 
 ```
 repository
@@ -81,45 +96,10 @@ repository
         └── ...
 ```
 
-
-## Configuration
-
-`hoard` draws its configuration from `$XDG_CONFIG/hoard/config`. This is a
-simple INI file with a few sections.
-
-- `encrypt`
-
-  Set the command used to encrypt data. This command must accept the plaintext
-  on STDIN and write the ciphertext to STDOUT. It should not require user
-  interaction.
-
-- `decrypt`
-
-  Set the command used to decrypt data. This command must accept the ciphertext
-  on STDIN and write the plaintext to STDOUT. It should not require user
-  interaction.
-
-- `type`
-
-  Specify the type of repository. Currently supports `file`.
-
-- `trim.keep-versions`
-
-  The number of versions of the archive to preserve when trimming.
-
-- `trim.keep-days`
-
-  The number of days of archive versions to preserve when trimming.
-
-### Defaults Section
-
-Default configuration lives in the `[defaults]` section. This will be used for
-any repository that does not specify a value for the configuration set here.
-
-### Repository Sections
-
-Each repository is configured in a section under the `repository` key, so a
-local repository would be `[repository.local]`.
+Note that _only_ the `config` file is stored raw (as it contains the
+instructions to decode the remaining data). All version and block files are
+encoded using the related archive's commands. This allows for different
+archives to be encrypted with different mechanisms, or for different audiences.
 
 
 ## Workflow
@@ -138,7 +118,7 @@ What are the workflows/use-cases that need to be supported by the tool?
 - I want to restore a version of an archive into a new local directory.
 
 
-## Operations
+## Usage
 
 ### Initialize Repository
 
