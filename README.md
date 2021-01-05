@@ -7,6 +7,8 @@ Hoard is a command-line tool for managing backups of your important files. It
 is designed to safely store backup snapshots of a directory tree in insecure
 storage mediums like a portable drive or a cloud provider.
 
+**NOTE:** I worked on this until the prototype stage, then discovered that [Borg](https://www.borgbackup.org/) already exists and does everything I planned to and more. This was a fun experiment, but I'm shelving it in favor of a widely-supported tool.
+
 
 ## Design
 
